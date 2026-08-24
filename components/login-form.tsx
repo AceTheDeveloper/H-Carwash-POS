@@ -56,7 +56,9 @@ export function LoginForm({
             Login
           </Button>
         </Field>
-        <FieldSeparator>Or continue with</FieldSeparator>
+        <FieldSeparator className="bg-surface!">
+          Or continue with
+        </FieldSeparator>
         <Field>
           <Button variant="outline" type="button" className={"rounded-md"}>
             <Image
