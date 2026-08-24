@@ -1,8 +1,11 @@
 "use client";
 
-import { LoginForm } from "@/components/login-form";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
+import { useAuth, useUser } from "@clerk/nextjs";
 
+import { LoginForm } from "@/components/login-form";
 import logoImg from "@/assets/h_final_logo.png";
 import frontpageImg from "@/assets/frontpage.jpg";
 
@@ -29,11 +32,12 @@ export default function LoginPage() {
         </div>
       </div>
       <div className="relative hidden bg-muted lg:block">
-        {/* 3. Pass the imported object directly to the src prop */}
         <Image
           src={frontpageImg}
-          alt="Image"
-          className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
+          alt="Frontpage background"
+          fill
+          sizes="50vw"
+          className="object-cover dark:brightness-[0.2] dark:grayscale"
           priority
         />
       </div>
