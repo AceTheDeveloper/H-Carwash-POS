@@ -52,23 +52,23 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "/dashboard",
+      url: "/admin",
       icon: <LayoutDashboardIcon />,
       isActive: true,
     },
     {
-      title: "Service Management",
-      url: "/services",
+      title: "Services Management",
+      url: "/admin/services",
       icon: <WrenchIcon />,
     },
     {
       title: "Promo Management",
-      url: "/promos",
+      url: "/admin/promos",
       icon: <TagsIcon />,
     },
     {
       title: "Transactions",
-      url: "/transactions",
+      url: "/admin/transactions",
       icon: <ReceiptIcon />,
     },
   ],

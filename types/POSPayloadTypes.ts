@@ -7,7 +7,7 @@ export interface ServicePackage  {
     label: string,
     price: number,
     icon: string,
-    inclusions: any[],
+    inclusions: string[],
   }
 
   export interface AddOns

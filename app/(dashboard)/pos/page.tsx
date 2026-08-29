@@ -148,7 +148,7 @@ export default function POSScreen() {
 
   return (
     <div className="min-h-screen lg:h-screen w-full bg-[var(--color-background)] p-3 sm:p-6 overflow-x-hidden lg:overflow-hidden text-[var(--color-text-primary)]">
-      <div className="grid grid-cols-1 lg:grid-cols-12 h-full gap-4 sm:gap-6 max-w-7xl mx-auto pb-20 lg:pb-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 h-full gap-4 sm:gap-6 max-w-7xl pb-20 lg:pb-0">
         {/* Main Content Column */}
         <div className="lg:col-span-8 bg-[var(--color-surface)] rounded-xl shadow-xs border border-[var(--color-border)] p-4 sm:p-6 flex flex-col gap-6 overflow-y-auto">
           <div>
