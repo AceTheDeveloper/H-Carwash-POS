@@ -25,10 +25,12 @@ import { useForm, Controller } from "react-hook-form";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { ServicesPayload } from "@/types/ServicesPayload";
+import { ServicesData } from "@/types/ServicesData";
 
 interface Props {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
+  selectedService: ServicesData | null; // Allow null here
 }
 
 const vehicleSpecs = [
@@ -36,10 +38,14 @@ const vehicleSpecs = [
   { label: "4 Wheels (Car/SUV/Truck)", value: "4-wheels" },
 ];
 
-export default function ServicesDialog({ isOpen, setIsOpen }: Props) {
-  const queryClient = useQueryClient();
+export default function ServicesDialog({
+  isOpen,
+  setIsOpen,
+  selectedService,
+}: Props) {
   const { data: inclusions, isLoading: inclusionIsLoading } = useInclusions();
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const queryClient = useQueryClient();
 
   // Initialize useForm strictly with your ServicesPayload type
   const {
@@ -49,19 +55,41 @@ export default function ServicesDialog({ isOpen, setIsOpen }: Props) {
     reset,
     formState: { errors },
   } = useForm<ServicesPayload>({
-    defaultValues: {
-      service_name: "",
-      service_price: undefined,
-      vehicle_type: "4-wheels",
-      inclusions: [],
-    },
+    // React to state changes and parse the stringified JSON array
+    values: selectedService
+      ? {
+          service_name: selectedService.service_name,
+          service_price: selectedService.service_price,
+          vehicle_type: selectedService.vehicle_type,
+          // Parse the strings back to objects before giving them to the form
+          inclusions: selectedService.inclusions.map((itemStr) => {
+            try {
+              return typeof itemStr === "string"
+                ? JSON.parse(itemStr)
+                : itemStr;
+            } catch (error) {
+              console.error("Failed to parse inclusion in dialog:", itemStr);
+              return itemStr;
+            }
+          }),
+        }
+      : {
+          // Provide fallbacks just in case
+          service_name: "",
+          service_price: 0,
+          vehicle_type: "4-wheels",
+          inclusions: [],
+        },
   });
 
   // Form Submission Handler now uses ServicesPayload
   async function onSubmit(data: ServicesPayload) {
     setIsLoading(true);
     try {
-      await api.post("/api/services", data);
+      // NOTE: If your backend expects a PUT/PATCH request for edits,
+      // you may need to conditionally call api.put/patch here based on
+      // whether selectedService has an ID.
+      await api.put(`/api/services/${selectedService?.id}`, data);
       reset();
       setIsOpen(false);
       queryClient.invalidateQueries({ queryKey: ["services"] });
@@ -83,7 +111,7 @@ export default function ServicesDialog({ isOpen, setIsOpen }: Props) {
       <DialogContent className="sm:max-w-[500px] rounded-lg shadow-lg p-6">
         <DialogHeader className="mb-4">
           <DialogTitle className="text-xl font-semibold">
-            Add New Service
+            {selectedService ? "Edit Service" : "Add New Service"}
           </DialogTitle>
         </DialogHeader>
 
@@ -204,13 +232,12 @@ export default function ServicesDialog({ isOpen, setIsOpen }: Props) {
                           <Checkbox
                             id={inclusion.id}
                             disabled={isLoading}
-                            // Check if the current inclusion object exists in the field.value array
+                            // This now works perfectly because field.value holds real objects
                             checked={field.value?.some(
                               (val) => val.id === inclusion.id,
                             )}
                             onCheckedChange={(checked) => {
                               const currentValues = field.value || [];
-                              // Store the whole object instead of just the ID
                               const newValues = checked
                                 ? [...currentValues, inclusion]
                                 : currentValues.filter(

@@ -1,4 +1,5 @@
-// THIS IS A SERVER COMPONENT DO NOT RUIN THIS
+"use client";
+
 import {
   Table,
   TableBody,
@@ -12,19 +13,26 @@ import { Edit, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase"; // Direct database connection
 import { InclusionData } from "@/types/InclusionData";
 import { ServicesData } from "@/types/ServicesData";
+import useServices from "@/hooks/useServices";
+import ServicesEditDialog from "@/components/dashboard/services/ServicesEditDialog";
+import { useState } from "react";
 
-export default async function ServicesTable() {
-  const { data: services, error } = await supabase.from("services").select("*");
+export default function ServicesTable() {
+  const { data: serviceList, isLoading } = useServices();
+  const [isOpen, setIsOpen] = useState<boolean>(false);
+  const [selectedService, setSelectedService] = useState<ServicesData | null>(
+    null,
+  );
 
-  if (error) {
-    console.error("Failed to fetch services:", error.message);
+  function handleEdit(selectedService: ServicesData) {
+    setSelectedService(selectedService);
+    setIsOpen(true);
   }
 
-  const serviceList: ServicesData[] = services || [];
-
+  if (isLoading) return null;
   return (
     <div className="w-full">
-      <Table>
+      <Table className="rounded-md">
         <TableHeader className="bg-muted/30">
           <TableRow>
             <TableHead className="w-[120px] font-semibold text-foreground text-center">
@@ -56,7 +64,7 @@ export default async function ServicesTable() {
               </TableCell>
             </TableRow>
           ) : (
-            serviceList.map((service, index) => (
+            serviceList.map((service: ServicesData, index: number) => (
               <TableRow
                 key={service.id}
                 className="hover:bg-muted/50 transition-colors group"
@@ -75,22 +83,31 @@ export default async function ServicesTable() {
 
                 <TableCell>
                   <div className="flex flex-wrap gap-1.5 items-center justify-center">
-                    {/* {service.inclusions.map(
-                      (inclusion: InclusionData, idx: number) => (
-                        
-                      ),
-                    )} */}
+                    {service.inclusions.map((itemStr: InclusionData) => {
+                      let item;
+                      try {
+                        item =
+                          typeof itemStr === "string"
+                            ? JSON.parse(itemStr)
+                            : itemStr;
+                      } catch (error) {
+                        console.error(
+                          "Failed to parse inclusion item:",
+                          itemStr,
+                        );
+                        return null;
+                      }
 
-                    {service.inclusions.map((item) => (
-                      <Badge
-                        key={item}
-                        variant="secondary"
-                        className="text-[10px] uppercase tracking-wider font-medium bg-background border-border"
-                      >
-                        {/* Call this one as item.label sooner once we fetched all the data by joining them */}
-                        {item}
-                      </Badge>
-                    ))}
+                      return (
+                        <Badge
+                          key={item.id}
+                          variant="secondary"
+                          className="text-[10px] uppercase tracking-wider font-medium bg-background border-border"
+                        >
+                          {item.label}
+                        </Badge>
+                      );
+                    })}
                   </div>
                 </TableCell>
 
@@ -99,12 +116,14 @@ export default async function ServicesTable() {
                     <button
                       className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
                       aria-label="Edit service"
+                      onClick={() => handleEdit(service)}
                     >
                       <Edit size={16} />
                     </button>
                     <button
                       className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
                       aria-label="Delete service"
+                      onClick={() => {}}
                     >
                       <Trash2 size={16} />
                     </button>
@@ -115,6 +134,14 @@ export default async function ServicesTable() {
           )}
         </TableBody>
       </Table>
+
+      {selectedService && (
+        <ServicesEditDialog
+          isOpen={isOpen}
+          setIsOpen={setIsOpen}
+          selectedService={selectedService}
+        />
+      )}
     </div>
   );
 }

@@ -1,16 +1,51 @@
-import {NextResponse, NextRequest} from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { NextResponse, NextRequest } from "next/server";
+import { supabase } from "@/lib/supabase";
 
-export async function GET(req : NextRequest){
-    
-    const {data, error} = await supabase.from('services').select('*');
+export async function POST(req: NextRequest, res: NextResponse) {
+  const body = await req.json();
 
-    if(error){
-        console.log(error.message);
-        return NextResponse.json({message : "Internal Server Error"}, {status : 500});
+  try {
+    const { error } = await supabase.from("services").insert(body);
+
+    if (error) {
+      console.log(error);
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 },
+      );
     }
 
-    console.log(data);
-    return NextResponse.json(data, {status : 200});
+    return NextResponse.json(
+      { message: "Saved Successfully" },
+      { status: 200 },
+    );
+  } catch (error) {
+    console.log(error);
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}
 
+export async function GET(req: NextRequest, res: NextResponse) {
+  try {
+    const { data, error } = await supabase.from("services").select();
+
+    if (error) {
+      console.log(error);
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(data, { status: 200 });
+  } catch (error) {
+    console.log(error);
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
 }
