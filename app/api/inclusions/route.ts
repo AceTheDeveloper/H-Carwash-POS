@@ -1,7 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET(req: NextRequest, res: NextResponse) {
+export async function GET(req: NextRequest) {
   try {
     const { data, error } = await supabase
       .from("inclusions")
@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, res: NextResponse) {
   } catch (error) {}
 }
 
-export async function POST(req: NextRequest, res: NextResponse) {
+export async function POST(req: NextRequest) {
   const body = await req.json();
 
   console.log("BODY : ", body);
