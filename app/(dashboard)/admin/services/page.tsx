@@ -90,7 +90,7 @@ export default function ServicesPageClient({
 
       <ServicesDialog isOpen={isOpen} setIsOpen={setIsOpen} />
 
-      <ServicesDialog isOpen={isOpen} setIsOpen={setIsOpen} />
+      {/* <ServicesDialog isOpen={isOpen} setIsOpen={setIsOpen} /> */}
     </div>
   );
 }

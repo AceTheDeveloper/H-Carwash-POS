@@ -57,7 +57,6 @@ export default function ServicesDialog({ isOpen, setIsOpen }: Props) {
     },
   });
 
-  // Form Submission Handler now uses ServicesPayload
   async function onSubmit(data: ServicesPayload) {
     setIsLoading(true);
     try {
@@ -75,7 +74,7 @@ export default function ServicesDialog({ isOpen, setIsOpen }: Props) {
   const handleClose = (open: boolean) => {
     if (isLoading) return;
     setIsOpen(open);
-    if (!open) reset(); // Clear errors and data when closing
+    if (!open) reset();
   };
 
   return (
