@@ -1,4 +1,5 @@
 import { InclusionData } from "./InclusionData";
+import { ServiceSizes } from "./ServicesPayload";
 
 export interface ServicesData {
   id: string;
@@ -6,6 +7,7 @@ export interface ServicesData {
   service_name: string;
   service_price: number;
   inclusions: InclusionData[];
+  size: ServiceSizes[];
   created_at: string;
   updated_at: string;
 }

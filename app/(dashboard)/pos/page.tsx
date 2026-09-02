@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import useServices from "@/hooks/useServices";
-import useAddOns from "@/hooks/useAddOns"; //[cite: 2] Make sure this hook exists
+import useAddOns from "@/hooks/useAddOns";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
 import ServicesCard from "@/components/pos/ServicesCard";
@@ -23,11 +23,9 @@ import {
   AlertCircle,
   Tag,
   Loader2,
-  Plus,
 } from "lucide-react";
 
 type VehicleSpecification = "4-wheels" | "2-wheels";
-type VehicleSize = "small" | "medium" | "large" | "regular" | "big-bike";
 
 type FormErrors = {
   customerName?: string;
@@ -37,16 +35,21 @@ type FormErrors = {
 
 export default function Page() {
   const { data: services, isLoading: isServicesLoading } = useServices();
-  // FIXED: Use the correct hook for add-ons
   const { data: addOnsData, isLoading: isAddOnsLoading } = useAddOns();
 
   const [vehicleSpecification, setVehicleSpecification] =
     useState<VehicleSpecification>("4-wheels");
-  const [vehicleSize, setVehicleSize] = useState<VehicleSize>("medium");
 
   const [selectedService, setSelectedService] = useState<ServicesData | null>(
     null,
   );
+
+  // Selected size object { size: string, price: number } for the chosen service
+  const [selectedSizeObj, setSelectedSizeObj] = useState<{
+    size: string;
+    price: number;
+  } | null>(null);
+
   // State for multiple selected add-ons
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnsData[]>([]);
 
@@ -56,22 +59,34 @@ export default function Page() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Extract add-ons array safely depending on API structure (e.g., addOnsData.data or addOnsData)
+  // Extract add-ons array safely depending on API structure
   const addOnsList: AddOnsData[] =
     addOnsData?.json?.data ||
     addOnsData?.data ||
     (Array.isArray(addOnsData) ? addOnsData : []);
 
-  // Reset the size and clear selections when the vehicle specification changes
+  // Reset selected service and size when the vehicle type specification changes
   useEffect(() => {
-    if (vehicleSpecification === "4-wheels") setVehicleSize("medium");
-    if (vehicleSpecification === "2-wheels") setVehicleSize("regular");
     setSelectedService(null);
+    setSelectedSizeObj(null);
   }, [vehicleSpecification]);
 
   const toggleService = (service: ServicesData) => {
     setSelectedService((prev) => {
-      if (prev?.id === service.id) return null;
+      if (prev?.id === service.id) {
+        setSelectedSizeObj(null);
+        return null;
+      }
+
+      // Automatically default to the first available size option for this service
+      const sizes =
+        (service.size as Array<{ size: string; price: number }>) || [];
+      if (sizes.length > 0) {
+        setSelectedSizeObj(sizes[0]);
+      } else {
+        setSelectedSizeObj(null);
+      }
+
       return service;
     });
   };
@@ -93,11 +108,18 @@ export default function Page() {
     setPlateNumber("");
     setContactNumber("");
     setSelectedService(null);
+    setSelectedSizeObj(null);
     setSelectedAddOns([]);
     setErrors({});
     setVehicleSpecification("4-wheels");
-    setVehicleSize("medium");
   };
+
+  const servicePrice = selectedSizeObj ? Number(selectedSizeObj.price) || 0 : 0;
+  const addOnsTotalPrice = selectedAddOns.reduce(
+    (sum, item) => sum + (Number(item.price) || 0),
+    0,
+  );
+  const totalPrice = servicePrice + addOnsTotalPrice;
 
   const onSubmit = async () => {
     const newErrors: FormErrors = {};
@@ -110,26 +132,21 @@ export default function Page() {
       return;
     }
 
-    if (!selectedService) return;
+    if (!selectedService || !selectedSizeObj) return;
 
     const payload = {
       customer_name: customerName,
       contact_number: contactNumber,
       plate_number: plateNumber,
       vehicle_classification: vehicleSpecification,
-      vehicle_size: vehicleSize,
+      vehicle_size: selectedSizeObj.size,
       service: selectedService.id,
-      service_price: Number(selectedService.service_price) || 0,
+      service_price: servicePrice,
       add_ons: selectedAddOns.map((addon) => addon.id),
       add_ons_price: selectedAddOns.map((addon) =>
         addon.price ? Number(addon.price) : 0,
       ),
-      total_price:
-        Number(selectedService.service_price) +
-        selectedAddOns.reduce(
-          (sum, item) => sum + (Number(item.price) || 0),
-          0,
-        ),
+      total_price: totalPrice,
     };
 
     setIsSubmitting(true);
@@ -157,16 +174,6 @@ export default function Page() {
       (service: ServicesData) => service.vehicle_type === vehicleSpecification,
     ) || [];
 
-  // Calculate total price: Service Price + Sum of Selected Add-Ons Prices
-  const servicePrice = selectedService
-    ? Number(selectedService.service_price) || 0
-    : 0;
-  const addOnsTotalPrice = selectedAddOns.reduce(
-    (sum, item) => sum + (Number(item.price) || 0),
-    0,
-  );
-  const totalPrice = servicePrice + addOnsTotalPrice;
-
   return (
     <div className="min-h-screen bg-muted/30 p-4 md:p-6 lg:h-screen lg:overflow-hidden font-sans">
       <main className="h-full max-w-[1400px] mx-auto">
@@ -179,7 +186,8 @@ export default function Page() {
                 New Transaction
               </h1>
               <p className="text-sm text-muted-foreground mt-1">
-                Fill in customer details and select a service to proceed.
+                1. Select vehicle type, 2. Choose service, 3. Select service
+                size.
               </p>
             </div>
 
@@ -292,107 +300,48 @@ export default function Page() {
               </div>
             </div>
 
-            {/* Vehicle Details Panel */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-card p-5 rounded-2xl border border-border/60 shadow-sm">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <CarFront className="w-4 h-4 text-muted-foreground" />
-                  <h2 className="text-base font-semibold tracking-tight text-foreground">
-                    Specification
-                  </h2>
-                </div>
-                <Tabs
-                  value={vehicleSpecification}
-                  onValueChange={(val) =>
-                    setVehicleSpecification(val as VehicleSpecification)
-                  }
-                  className="w-full"
-                >
-                  <TabsList className="w-full grid grid-cols-2 h-12 p-1 bg-muted/50 rounded-xl">
-                    <TabsTrigger
-                      value="4-wheels"
-                      disabled={isSubmitting}
-                      className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                    >
-                      4 Wheels
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="2-wheels"
-                      disabled={isSubmitting}
-                      className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                    >
-                      2 Wheels
-                    </TabsTrigger>
-                  </TabsList>
-                </Tabs>
+            {/* Step 1: Vehicle Specification Panel */}
+            <div className="bg-card p-5 rounded-2xl border border-border/60 shadow-sm space-y-4">
+              <div className="flex items-center gap-2">
+                <CarFront className="w-4 h-4 text-muted-foreground" />
+                <h2 className="text-base font-semibold tracking-tight text-foreground">
+                  Step 1: Select Vehicle Type
+                </h2>
               </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Settings2 className="w-4 h-4 text-muted-foreground" />
-                  <h2 className="text-base font-semibold tracking-tight text-foreground">
-                    Vehicle Size
-                  </h2>
-                </div>
-                <Tabs
-                  value={vehicleSize}
-                  onValueChange={(val) => setVehicleSize(val as VehicleSize)}
-                  className="w-full"
-                >
-                  {vehicleSpecification === "4-wheels" ? (
-                    <TabsList className="w-full grid grid-cols-3 h-12 p-1 bg-muted/50 rounded-xl">
-                      <TabsTrigger
-                        value="small"
-                        disabled={isSubmitting}
-                        className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                      >
-                        Small
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="medium"
-                        disabled={isSubmitting}
-                        className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                      >
-                        Medium
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="large"
-                        disabled={isSubmitting}
-                        className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                      >
-                        Large
-                      </TabsTrigger>
-                    </TabsList>
-                  ) : (
-                    <TabsList className="w-full grid grid-cols-2 h-12 p-1 bg-muted/50 rounded-xl">
-                      <TabsTrigger
-                        value="regular"
-                        disabled={isSubmitting}
-                        className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                      >
-                        Regular
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="big-bike"
-                        disabled={isSubmitting}
-                        className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
-                      >
-                        Big Bike
-                      </TabsTrigger>
-                    </TabsList>
-                  )}
-                </Tabs>
-              </div>
+              <Tabs
+                value={vehicleSpecification}
+                onValueChange={(val) =>
+                  setVehicleSpecification(val as VehicleSpecification)
+                }
+                className="w-full"
+              >
+                <TabsList className="w-full grid grid-cols-2 h-12 p-1 bg-muted/50 rounded-xl">
+                  <TabsTrigger
+                    value="4-wheels"
+                    disabled={isSubmitting}
+                    className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                  >
+                    4 Wheels
+                  </TabsTrigger>
+                  <TabsTrigger
+                    value="2-wheels"
+                    disabled={isSubmitting}
+                    className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                  >
+                    2 Wheels
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
             </div>
 
-            {/* Services Grid */}
+            {/* Step 2: Services Grid */}
             <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2">
                 <div className="p-2 bg-primary/10 rounded-lg text-primary">
                   <Sparkles className="w-5 h-5" />
                 </div>
                 <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                  Available Services
+                  Step 2: Choose Service
                 </h2>
               </div>
 
@@ -429,21 +378,69 @@ export default function Page() {
                       No services found
                     </p>
                     <p className="text-sm text-muted-foreground">
-                      Try selecting a different vehicle specification.
+                      Try selecting a different vehicle type.
                     </p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Add-Ons Section (Rendered properly now) */}
+            {/* Step 3: Vehicle Size Panel (Appears only when a service is selected) */}
+            {selectedService && (
+              <div className="bg-card p-5 rounded-2xl border border-primary/40 shadow-sm space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                <div className="flex items-center gap-2">
+                  <Settings2 className="w-4 h-4 text-primary" />
+                  <h2 className="text-base font-semibold tracking-tight text-foreground">
+                    Step 3: Select Service Size for &quot;
+                    {selectedService.service_name}&quot;
+                  </h2>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {(
+                    (selectedService.size as Array<{
+                      size: string;
+                      price: number;
+                    }>) || []
+                  ).map((sizeObj) => {
+                    const isSizeSelected =
+                      selectedSizeObj?.size === sizeObj.size;
+
+                    return (
+                      <button
+                        key={sizeObj.size}
+                        type="button"
+                        onClick={() => setSelectedSizeObj(sizeObj)}
+                        className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center transition-all ${
+                          isSizeSelected
+                            ? "border-primary bg-primary/10 text-primary font-bold shadow-sm"
+                            : "border-border/60 bg-background hover:border-primary/40 text-foreground"
+                        }`}
+                      >
+                        <span className="capitalize text-sm">
+                          {sizeObj.size}
+                        </span>
+                        <span className="text-xs text-muted-foreground mt-1">
+                          ₱
+                          {Number(sizeObj.price).toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Add-Ons Section */}
             <div className="space-y-4 pb-12">
               <div className="flex items-center gap-2 pb-2">
                 <div className="p-2 bg-primary/10 rounded-lg text-primary">
                   <Tag className="w-5 h-5" />
                 </div>
                 <h2 className="text-xl font-semibold tracking-tight text-foreground">
-                  Available Add-Ons
+                  Available Add-Ons (Optional)
                 </h2>
               </div>
 
@@ -512,7 +509,7 @@ export default function Page() {
                     <Tag className="w-12 h-12 mb-4 text-muted-foreground/40 stroke-[1.5]" />
                     <p className="text-sm font-medium">No items selected</p>
                     <p className="text-xs mt-1 max-w-[200px]">
-                      Click on a service or add-on to build your order.
+                      Follow the steps on the left to build your order.
                     </p>
                   </div>
                 ) : (
@@ -529,14 +526,12 @@ export default function Page() {
                             <span className="text-xs text-muted-foreground mt-1 capitalize inline-flex items-center gap-1">
                               <Settings2 className="w-3 h-3" />
                               {vehicleSpecification.replace("-", " ")} •{" "}
-                              {vehicleSize}
+                              {selectedSizeObj?.size || "Select size"}
                             </span>
                           </div>
                           <span className="font-bold text-sm text-foreground whitespace-nowrap">
                             ₱
-                            {Number(
-                              selectedService.service_price,
-                            ).toLocaleString("en-US", {
+                            {servicePrice.toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
                             })}
@@ -589,7 +584,9 @@ export default function Page() {
 
                 <button
                   onClick={onSubmit}
-                  disabled={!selectedService || isSubmitting}
+                  disabled={
+                    !selectedService || !selectedSizeObj || isSubmitting
+                  }
                   className="w-full py-4 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20 hover:shadow-lg disabled:shadow-none active:scale-[0.98]"
                 >
                   {isSubmitting ? (

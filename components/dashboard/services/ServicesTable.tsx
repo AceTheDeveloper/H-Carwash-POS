@@ -53,7 +53,7 @@ export default function ServicesTable({ search, setSearch }: Props) {
               Service Name
             </TableHead>
             <TableHead className="font-semibold text-foreground text-center">
-              Price
+              Sizes
             </TableHead>
             <TableHead className="text-right font-semibold text-foreground text-center">
               Actions
@@ -86,7 +86,11 @@ export default function ServicesTable({ search, setSearch }: Props) {
                 </TableCell>
 
                 <TableCell className="text-muted-foreground text-center">
-                  ₱ {service.service_price}
+                  <div className="flex items-center gap-2 justify-center">
+                    {service.size.map((ser, index) => (
+                      <span key={index}>{ser.size}</span>
+                    ))}
+                  </div>
                 </TableCell>
 
                 <TableCell className="text-right text-center">

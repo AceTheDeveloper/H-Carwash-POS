@@ -23,12 +23,19 @@ export interface AddOns {
   icon: string;
 }
 
+export interface AddOnItem {
+  id: string;
+  price: number; // Snapshot price at checkout
+}
+
 export interface POSPayload {
+  customer_name: string;
   contact_number: string;
   plate_number: string;
-  customer_name: string;
   vehicle_classification: VehicleClassification;
   vehicle_size: VehicleSize;
-  service: string;
-  add_ons: AddOns[];
+  service: string; // Service ID
+  service_price: number; // Snapshot price of the service
+  add_ons: AddOnItem[]; // Array of add-ons with their snapshot prices
+  total_price: number; // Combined total
 }

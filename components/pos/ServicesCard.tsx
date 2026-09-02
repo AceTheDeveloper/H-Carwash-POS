@@ -9,11 +9,27 @@ interface Props {
 }
 
 function ServicesCard({ service }: Props) {
-  // Format the price with commas and 2 decimal places
-  const formattedPrice = Number(service.service_price).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+  // Extract and compute price range from the dynamic size JSONB array
+  const sizes = (service.size as Array<{ size: string; price: number }>) || [];
+
+  const formattedPrice = useMemo(() => {
+    if (sizes.length === 0) return "0.00";
+
+    const prices = sizes.map((s) => Number(s.price) || 0);
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+
+    const formatNum = (val: number) =>
+      val.toLocaleString("en-US", {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      });
+
+    if (minPrice === maxPrice) {
+      return formatNum(minPrice);
+    }
+    return `${formatNum(minPrice)} - ₱${formatNum(maxPrice)}`;
+  }, [sizes]);
 
   // Safely parse the stringified JSON items in the inclusions array
   const parsedInclusions = useMemo<InclusionData[]>(() => {
@@ -39,13 +55,13 @@ function ServicesCard({ service }: Props) {
 
   return (
     <Card className="h-full flex flex-col border-none shadow-none bg-transparent p-3">
-      {/* Top Section: Title, Icon, and Price */}
+      {/* Top Section: Title, Icon, and Price Range */}
       <div className="flex justify-between items-start gap-2">
         <div className="flex-1">
           <h3 className="text-sm font-bold text-foreground leading-tight line-clamp-2">
             {service.service_name}
           </h3>
-          <div className="mt-1 text-lg font-black text-primary tracking-tight">
+          <div className="mt-1 text-base font-black text-primary tracking-tight">
             ₱{formattedPrice}
           </div>
         </div>
