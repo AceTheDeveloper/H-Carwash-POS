@@ -32,3 +32,32 @@ export async function PUT(
     );
   }
 }
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+
+    const { error } = await supabase.from("services").delete().eq("id", id);
+
+    if (error) {
+      console.log(error.message);
+      return NextResponse.json(
+        { message: "Internal Server Error" },
+        { status: 500 },
+      );
+    }
+
+    return NextResponse.json(
+      { message: "Deleted Successfully" },
+      { status: 200 },
+    );
+  } catch (error) {
+    return NextResponse.json(
+      { message: "Internal Server Error" },
+      { status: 500 },
+    );
+  }
+}

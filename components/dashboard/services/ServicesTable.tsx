@@ -8,13 +8,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2 } from "lucide-react";
-import { InclusionData } from "@/types/InclusionData";
 import { ServicesData } from "@/types/ServicesData";
 import useServices from "@/hooks/useServices";
 import ServicesEditDialog from "@/components/dashboard/services/ServicesEditDialog";
 import { useState } from "react";
+import DeleteDialog from "@/components/reusables/DeleteDialog";
+import { api } from "@/lib/api"; // Make sure to import your API client
+import { useQueryClient } from "@tanstack/react-query"; // Import to refresh table
 
 interface Props {
   search: string;
@@ -23,15 +24,48 @@ interface Props {
 
 export default function ServicesTable({ search, setSearch }: Props) {
   const { data: serviceList, isLoading } = useServices();
+  const queryClient = useQueryClient();
+
+  // State for Edit Dialog
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [selectedService, setSelectedService] = useState<ServicesData | null>(
     null,
   );
 
-  function handleEdit(selectedService: ServicesData) {
-    setSelectedService(selectedService);
+  // State for Delete Dialog
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const [serviceToDelete, setServiceToDelete] = useState<ServicesData | null>(
+    null,
+  );
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
+
+  function handleEdit(service: ServicesData) {
+    setSelectedService(service);
     setIsOpen(true);
   }
+
+  function handleDeletePrompt(service: ServicesData) {
+    setServiceToDelete(service);
+    setIsDeleteDialogOpen(true);
+  }
+
+  const handleDelete = async () => {
+    if (!serviceToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await api.delete(`/api/services/${serviceToDelete.id}`);
+
+      // Close dialog and refresh data
+      setIsDeleteDialogOpen(false);
+      setServiceToDelete(null);
+      queryClient.invalidateQueries({ queryKey: ["services"] });
+    } catch (error) {
+      console.error("Failed to delete service:", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   if (isLoading) return null;
 
@@ -72,51 +106,68 @@ export default function ServicesTable({ search, setSearch }: Props) {
               </TableCell>
             </TableRow>
           ) : (
-            filteredServices.map((service: ServicesData, index: number) => (
-              <TableRow
-                key={service.id}
-                className="hover:bg-muted/50 transition-colors group"
-              >
-                <TableCell className="text-xs text-muted-foreground font-medium text-center">
-                  {index}
-                </TableCell>
+            filteredServices.map((service: ServicesData, index: number) => {
+              // Parse the size array safely for display
+              const sizes = Array.isArray(service.size)
+                ? service.size
+                : typeof service.size === "string"
+                  ? JSON.parse(service.size)
+                  : [];
 
-                <TableCell className="font-medium text-foreground text-center">
-                  {service.service_name}
-                </TableCell>
+              return (
+                <TableRow
+                  key={service.id}
+                  className="hover:bg-muted/50 transition-colors group"
+                >
+                  <TableCell className="text-xs text-muted-foreground font-medium text-center">
+                    {index + 1}{" "}
+                    {/* Changed to index + 1 so it doesn't start at 0 */}
+                  </TableCell>
 
-                <TableCell className="text-muted-foreground text-center">
-                  <div className="flex items-center gap-2 justify-center">
-                    {service.size.map((ser, index) => (
-                      <span key={index}>{ser.size}</span>
-                    ))}
-                  </div>
-                </TableCell>
+                  <TableCell className="font-medium text-foreground text-center">
+                    {service.service_name}
+                  </TableCell>
 
-                <TableCell className="text-right text-center">
-                  <div className="flex justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
-                    <button
-                      className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
-                      aria-label="Edit service"
-                      onClick={() => handleEdit(service)}
-                    >
-                      <Edit size={16} />
-                    </button>
-                    <button
-                      className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
-                      aria-label="Delete service"
-                      onClick={() => {}}
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
+                  <TableCell className="text-muted-foreground text-center">
+                    <div className="flex items-center gap-2 justify-center capitalize">
+                      {sizes.map((ser: any, i: number) => (
+                        <span
+                          key={i}
+                          className="bg-muted px-2 py-0.5 rounded-md text-xs"
+                        >
+                          {ser.size}
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+
+                  <TableCell className="text-right text-center">
+                    <div className="flex justify-center gap-2 opacity-80 group-hover:opacity-100 transition-opacity">
+                      <button
+                        className="p-1.5 text-muted-foreground hover:text-primary hover:bg-primary/10 rounded-md transition-colors"
+                        aria-label="Edit service"
+                        onClick={() => handleEdit(service)}
+                      >
+                        <Edit size={16} />
+                      </button>
+                      <button
+                        className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
+                        aria-label="Delete service"
+                        // Trigger the prompt and pass the specific service
+                        onClick={() => handleDeletePrompt(service)}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })
           )}
         </TableBody>
       </Table>
 
+      {/* Edit Dialog */}
       {selectedService && (
         <ServicesEditDialog
           isOpen={isOpen}
@@ -124,6 +175,16 @@ export default function ServicesTable({ search, setSearch }: Props) {
           selectedService={selectedService}
         />
       )}
+
+      {/* Delete Dialog */}
+      <DeleteDialog
+        isOpen={isDeleteDialogOpen}
+        setIsOpen={setIsDeleteDialogOpen}
+        title="Delete Service"
+        message={`Are you sure you want to delete "${serviceToDelete?.service_name}"? This action cannot be undone.`}
+        onOkayPress={handleDelete}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }
