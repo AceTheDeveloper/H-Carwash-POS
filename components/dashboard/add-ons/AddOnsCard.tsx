@@ -1,5 +1,5 @@
 import { AddOnsData } from "@/types/AddOnsData";
-import { Plus, Check, Tag } from "lucide-react";
+import { Plus, Tag, Eye } from "lucide-react";
 
 interface Props {
   data: AddOnsData;
@@ -54,11 +54,7 @@ export default function AddOnsCard({
             : "border-border/80 bg-background group-hover:border-primary/50 text-muted-foreground"
         }`}
       >
-        {isSelected ? (
-          <Check className="w-4 h-4 stroke-[2.5]" />
-        ) : (
-          <Plus className="w-4 h-4 opacity-70 group-hover:opacity-100" />
-        )}
+        <Eye className="w-4 h-4 opacity-70 group-hover:opacity-100" />
       </div>
     </div>
   );

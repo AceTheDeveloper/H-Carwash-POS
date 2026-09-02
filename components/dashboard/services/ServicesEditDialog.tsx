@@ -24,7 +24,7 @@ import { InclusionData } from "@/types/InclusionData";
 import { useForm, Controller, useFieldArray } from "react-hook-form";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { ServicesPayload } from "@/types/ServicesPayload";
+import { ServiceSizes, ServicesPayload } from "@/types/ServicesPayload";
 import { ServicesData } from "@/types/ServicesData";
 
 interface Props {
@@ -61,7 +61,7 @@ export default function ServicesDialog({
           vehicle_type: selectedService.vehicle_type,
           // Safely map/parse the size JSON array
           size: Array.isArray(selectedService.size)
-            ? selectedService.size.map((itemStr: any) => {
+            ? selectedService.size.map((itemStr: ServiceSizes) => {
                 try {
                   return typeof itemStr === "string"
                     ? JSON.parse(itemStr)

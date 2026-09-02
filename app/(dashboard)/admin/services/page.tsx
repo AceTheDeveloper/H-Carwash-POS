@@ -22,6 +22,7 @@ import useAddOns from "@/hooks/useAddOns";
 import { AddOnsPayload } from "@/types/AddOnsPayload";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
+import AddOnsViewDialog from "@/components/dashboard/add-ons/AddOnsViewDialog";
 
 export default function ServicesPageClient() {
   const queryClient = useQueryClient();
@@ -30,11 +31,29 @@ export default function ServicesPageClient() {
   const { data: add_ons, isLoading: add_onsIsLoading } = useAddOns();
   const [search, setSearch] = useState<string>("");
 
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [selectedAddOn, setSelectedAddOn] = useState<AddOnsData | null>(null);
+
+  const handleModifyAddOn = async (
+    id: string,
+    data: { label: string; price: number },
+  ) => {
+    // TODO: Add your PUT/PATCH API call here
+    await api.put(`/api/add-ons/${id}`, data);
+    queryClient.invalidateQueries({ queryKey: ["add-ons"] });
+  };
+
+  const handleRemoveAddOn = async (id: string) => {
+    // TODO: Add your DELETE API call here
+    await api.delete(`/api/add-ons/${id}`);
+    queryClient.invalidateQueries({ queryKey: ["add-ons"] });
+  };
+
   async function handleAddOnsSubmit(payload: AddOnsPayload) {
     await api.post("/api/add-ons", payload);
 
     // ADDED AWAIT HERE
-    await queryClient.invalidateQueries({ queryKey: ["add_ons"] });
+    await queryClient.invalidateQueries({ queryKey: ["add-ons"] });
   }
 
   return (
@@ -141,7 +160,14 @@ export default function ServicesPageClient() {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {add_ons?.length > 0 ? (
                 add_ons.map((addon: AddOnsData) => (
-                  <AddOnsCard key={addon.id} data={addon} />
+                  <AddOnsCard
+                    key={addon.id}
+                    data={addon}
+                    onToggle={() => {
+                      setSelectedAddOn(addon);
+                      setIsViewOpen(true);
+                    }}
+                  />
                 ))
               ) : (
                 <div className="col-span-full py-8 text-center text-sm text-muted-foreground border-2 border-dashed border-border rounded-xl">
@@ -154,6 +180,14 @@ export default function ServicesPageClient() {
       </main>
 
       <ServicesDialog isOpen={isOpen} setIsOpen={setIsOpen} />
+
+      <AddOnsViewDialog
+        isOpen={isViewOpen}
+        setIsOpen={setIsViewOpen}
+        addOn={selectedAddOn}
+        onModify={handleModifyAddOn}
+        onRemove={handleRemoveAddOn}
+      />
     </div>
   );
 }
