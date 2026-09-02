@@ -5,7 +5,9 @@ import { Label } from "@/components/ui/label";
 import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import useServices from "@/hooks/useServices";
+import useAddOns from "@/hooks/useAddOns"; //[cite: 2] Make sure this hook exists
 import { ServicesData } from "@/types/ServicesData";
+import { AddOnsData } from "@/types/AddOnsData";
 import ServicesCard from "@/components/pos/ServicesCard";
 import { api } from "@/lib/api";
 import {
@@ -21,6 +23,7 @@ import {
   AlertCircle,
   Tag,
   Loader2,
+  Plus,
 } from "lucide-react";
 
 type VehicleSpecification = "4-wheels" | "2-wheels";
@@ -34,6 +37,8 @@ type FormErrors = {
 
 export default function Page() {
   const { data: services, isLoading: isServicesLoading } = useServices();
+  // FIXED: Use the correct hook for add-ons
+  const { data: addOnsData, isLoading: isAddOnsLoading } = useAddOns();
 
   const [vehicleSpecification, setVehicleSpecification] =
     useState<VehicleSpecification>("4-wheels");
@@ -42,12 +47,20 @@ export default function Page() {
   const [selectedService, setSelectedService] = useState<ServicesData | null>(
     null,
   );
+  // State for multiple selected add-ons
+  const [selectedAddOns, setSelectedAddOns] = useState<AddOnsData[]>([]);
 
   const [customerName, setCustomerName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Extract add-ons array safely depending on API structure (e.g., addOnsData.data or addOnsData)
+  const addOnsList: AddOnsData[] =
+    addOnsData?.json?.data ||
+    addOnsData?.data ||
+    (Array.isArray(addOnsData) ? addOnsData : []);
 
   // Reset the size and clear selections when the vehicle specification changes
   useEffect(() => {
@@ -63,18 +76,30 @@ export default function Page() {
     });
   };
 
+  // Toggle function for multi-select add-ons
+  const toggleAddOn = (addon: AddOnsData) => {
+    setSelectedAddOns((prev) => {
+      const exists = prev.some((item) => item.id === addon.id);
+      if (exists) {
+        return prev.filter((item) => item.id !== addon.id);
+      } else {
+        return [...prev, addon];
+      }
+    });
+  };
+
   const resetForm = () => {
     setCustomerName("");
     setPlateNumber("");
     setContactNumber("");
     setSelectedService(null);
+    setSelectedAddOns([]);
     setErrors({});
     setVehicleSpecification("4-wheels");
     setVehicleSize("medium");
   };
 
   const onSubmit = async () => {
-    // 1. Validate fields
     const newErrors: FormErrors = {};
     if (!customerName.trim()) newErrors.customerName = "Name is required";
     if (!contactNumber.trim()) newErrors.contactNumber = "Phone is required";
@@ -85,10 +110,8 @@ export default function Page() {
       return;
     }
 
-    // 2. Extra safety check for service
     if (!selectedService) return;
 
-    // 3. Validated Data Payload
     const payload = {
       customer_name: customerName,
       contact_number: contactNumber,
@@ -96,41 +119,53 @@ export default function Page() {
       vehicle_classification: vehicleSpecification,
       vehicle_size: vehicleSize,
       service: selectedService.id,
+      service_price: Number(selectedService.service_price) || 0,
+      add_ons: selectedAddOns.map((addon) => addon.id),
+      add_ons_price: selectedAddOns.map((addon) =>
+        addon.price ? Number(addon.price) : 0,
+      ),
+      total_price:
+        Number(selectedService.service_price) +
+        selectedAddOns.reduce(
+          (sum, item) => sum + (Number(item.price) || 0),
+          0,
+        ),
     };
 
     setIsSubmitting(true);
 
     try {
-      const res = await api.post("/api/pos/checkout", payload);
-
-      // TODO: Place success toast here when ready
-
+      await api.post("/api/pos/checkout", payload);
       resetForm();
     } catch (error) {
       console.error("Error submitting checkout:", error);
-      // TODO: Place error toast here when ready
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Helper to clear error when user types
   const clearError = (field: keyof FormErrors) => {
     if (errors[field]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
 
-  if (isServicesLoading) return null;
+  if (isServicesLoading || isAddOnsLoading) return null;
 
   const servicesToRender: ServicesData[] =
     services?.filter(
       (service: ServicesData) => service.vehicle_type === vehicleSpecification,
     ) || [];
 
-  const totalPrice = selectedService
+  // Calculate total price: Service Price + Sum of Selected Add-Ons Prices
+  const servicePrice = selectedService
     ? Number(selectedService.service_price) || 0
     : 0;
+  const addOnsTotalPrice = selectedAddOns.reduce(
+    (sum, item) => sum + (Number(item.price) || 0),
+    0,
+  );
+  const totalPrice = servicePrice + addOnsTotalPrice;
 
   return (
     <div className="min-h-screen bg-muted/30 p-4 md:p-6 lg:h-screen lg:overflow-hidden font-sans">
@@ -259,7 +294,6 @@ export default function Page() {
 
             {/* Vehicle Details Panel */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 bg-card p-5 rounded-2xl border border-border/60 shadow-sm">
-              {/* Specification */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-1">
                   <CarFront className="w-4 h-4 text-muted-foreground" />
@@ -293,7 +327,6 @@ export default function Page() {
                 </Tabs>
               </div>
 
-              {/* Size */}
               <div className="space-y-4">
                 <div className="flex items-center gap-2 mb-1">
                   <Settings2 className="w-4 h-4 text-muted-foreground" />
@@ -353,7 +386,7 @@ export default function Page() {
             </div>
 
             {/* Services Grid */}
-            <div className="space-y-4 flex-1">
+            <div className="space-y-4">
               <div className="flex items-center gap-2 pb-2">
                 <div className="p-2 bg-primary/10 rounded-lg text-primary">
                   <Sparkles className="w-5 h-5" />
@@ -363,7 +396,7 @@ export default function Page() {
                 </h2>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4 pb-12">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
                 {servicesToRender.length > 0 ? (
                   servicesToRender.map((service: ServicesData) => {
                     const isSelected = selectedService?.id === service.id;
@@ -402,12 +435,67 @@ export default function Page() {
                 )}
               </div>
             </div>
+
+            {/* Add-Ons Section (Rendered properly now) */}
+            <div className="space-y-4 pb-12">
+              <div className="flex items-center gap-2 pb-2">
+                <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                  <Tag className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-semibold tracking-tight text-foreground">
+                  Available Add-Ons
+                </h2>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
+                {addOnsList.length > 0 ? (
+                  addOnsList.map((addon: AddOnsData) => {
+                    const isSelected = selectedAddOns.some(
+                      (item) => item.id === addon.id,
+                    );
+
+                    return (
+                      <div
+                        key={addon.id}
+                        onClick={() => !isSubmitting && toggleAddOn(addon)}
+                        className={`relative cursor-pointer p-4 rounded-xl border-2 transition-all duration-300 flex items-center justify-between ${
+                          isSelected
+                            ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
+                            : "border-border/60 bg-card hover:border-primary/40 hover:shadow-sm"
+                        } ${isSubmitting ? "pointer-events-none opacity-60" : ""}`}
+                      >
+                        <div className="flex flex-col pr-2">
+                          <span className="font-semibold text-foreground text-sm">
+                            {addon.label}
+                          </span>
+                          <span className="text-xs text-muted-foreground mt-1 font-medium">
+                            ₱
+                            {Number(addon.price).toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                              maximumFractionDigits: 2,
+                            })}
+                          </span>
+                        </div>
+                        <div
+                          className={`w-6 h-6 rounded-full flex items-center justify-center border transition-colors ${isSelected ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/30 text-transparent"}`}
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div className="col-span-full py-8 text-center text-sm text-muted-foreground border-2 border-dashed border-border rounded-xl">
+                    No add-ons available.
+                  </div>
+                )}
+              </div>
+            </div>
           </section>
 
           {/* Right Column - Sticky Order Summary Panel */}
           <section className="w-full lg:w-[380px] xl:w-[420px] h-auto lg:h-full flex flex-col shrink-0 lg:sticky lg:top-0 order-first lg:order-last mb-6 lg:mb-0">
             <div className="flex-1 bg-card border border-border/60 rounded-2xl shadow-sm flex flex-col overflow-hidden">
-              {/* Summary Header */}
               <div className="bg-muted/30 p-5 border-b border-border/50">
                 <div className="flex items-center gap-2">
                   <Receipt className="w-5 h-5 text-primary" />
@@ -418,45 +506,68 @@ export default function Page() {
               </div>
 
               {/* Selected Items Area */}
-              <div className="flex-1 p-5 overflow-y-auto bg-background/50">
-                {!selectedService ? (
+              <div className="flex-1 p-5 overflow-y-auto bg-background/50 space-y-4">
+                {!selectedService && selectedAddOns.length === 0 ? (
                   <div className="h-full flex flex-col items-center justify-center text-center text-muted-foreground opacity-70 mt-10 lg:mt-0">
                     <Tag className="w-12 h-12 mb-4 text-muted-foreground/40 stroke-[1.5]" />
-                    <p className="text-sm font-medium">No service selected</p>
+                    <p className="text-sm font-medium">No items selected</p>
                     <p className="text-xs mt-1 max-w-[200px]">
-                      Click on a service card from the left to add it to your
-                      order.
+                      Click on a service or add-on to build your order.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    <div className="p-4 bg-card border border-primary/20 rounded-xl shadow-sm relative overflow-hidden">
-                      {/* Decorative side accent */}
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
-
-                      <div className="flex justify-between items-start">
-                        <div className="flex flex-col pr-4">
-                          <span className="font-bold text-foreground text-base">
-                            {selectedService.service_name}
-                          </span>
-                          <span className="text-xs text-muted-foreground mt-1 capitalize inline-flex items-center gap-1">
-                            <Settings2 className="w-3 h-3" />
-                            {vehicleSpecification.replace("-", " ")} •{" "}
-                            {vehicleSize}
-                          </span>
-                        </div>
-                        <span className="font-bold text-lg text-foreground whitespace-nowrap">
-                          ₱
-                          {Number(selectedService.service_price).toLocaleString(
-                            "en-US",
-                            {
+                  <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                    {/* Selected Service Item */}
+                    {selectedService && (
+                      <div className="p-4 bg-card border border-primary/20 rounded-xl shadow-sm relative overflow-hidden">
+                        <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
+                        <div className="flex justify-between items-start">
+                          <div className="flex flex-col pr-4">
+                            <span className="font-bold text-foreground text-sm">
+                              {selectedService.service_name}
+                            </span>
+                            <span className="text-xs text-muted-foreground mt-1 capitalize inline-flex items-center gap-1">
+                              <Settings2 className="w-3 h-3" />
+                              {vehicleSpecification.replace("-", " ")} •{" "}
+                              {vehicleSize}
+                            </span>
+                          </div>
+                          <span className="font-bold text-sm text-foreground whitespace-nowrap">
+                            ₱
+                            {Number(
+                              selectedService.service_price,
+                            ).toLocaleString("en-US", {
                               minimumFractionDigits: 2,
                               maximumFractionDigits: 2,
-                            },
-                          )}
+                            })}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Selected Add-Ons List */}
+                    {selectedAddOns.map((addon) => (
+                      <div
+                        key={addon.id}
+                        className="p-3 bg-card border border-border/60 rounded-xl shadow-sm flex justify-between items-center"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                            Add-On
+                          </span>
+                          <span className="font-medium text-foreground text-sm">
+                            {addon.label}
+                          </span>
+                        </div>
+                        <span className="font-semibold text-sm text-foreground">
+                          ₱
+                          {Number(addon.price).toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}
                         </span>
                       </div>
-                    </div>
+                    ))}
                   </div>
                 )}
               </div>
