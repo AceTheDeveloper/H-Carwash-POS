@@ -10,14 +10,18 @@ import {
 } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Edit, Trash2 } from "lucide-react";
-import { supabase } from "@/lib/supabase"; // Direct database connection
 import { InclusionData } from "@/types/InclusionData";
 import { ServicesData } from "@/types/ServicesData";
 import useServices from "@/hooks/useServices";
 import ServicesEditDialog from "@/components/dashboard/services/ServicesEditDialog";
 import { useState } from "react";
 
-export default function ServicesTable() {
+interface Props {
+  search: string;
+  setSearch: () => void;
+}
+
+export default function ServicesTable({ search, setSearch }: Props) {
   const { data: serviceList, isLoading } = useServices();
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [selectedService, setSelectedService] = useState<ServicesData | null>(
@@ -30,6 +34,13 @@ export default function ServicesTable() {
   }
 
   if (isLoading) return null;
+
+  const filteredServices: ServicesData[] = serviceList.filter(
+    (service: ServicesData) => {
+      return service.service_name.toLowerCase().includes(search.toLowerCase());
+    },
+  );
+
   return (
     <div className="w-full">
       <Table className="rounded-md">
@@ -44,9 +55,6 @@ export default function ServicesTable() {
             <TableHead className="font-semibold text-foreground text-center">
               Price
             </TableHead>
-            <TableHead className="font-semibold text-foreground max-w-[300px] text-center">
-              Inclusions
-            </TableHead>
             <TableHead className="text-right font-semibold text-foreground text-center">
               Actions
             </TableHead>
@@ -54,7 +62,7 @@ export default function ServicesTable() {
         </TableHeader>
 
         <TableBody>
-          {serviceList.length === 0 ? (
+          {filteredServices.length === 0 ? (
             <TableRow>
               <TableCell
                 colSpan={5}
@@ -64,7 +72,7 @@ export default function ServicesTable() {
               </TableCell>
             </TableRow>
           ) : (
-            serviceList.map((service: ServicesData, index: number) => (
+            filteredServices.map((service: ServicesData, index: number) => (
               <TableRow
                 key={service.id}
                 className="hover:bg-muted/50 transition-colors group"
@@ -79,36 +87,6 @@ export default function ServicesTable() {
 
                 <TableCell className="text-muted-foreground text-center">
                   ₱ {service.service_price}
-                </TableCell>
-
-                <TableCell>
-                  <div className="flex flex-wrap gap-1.5 items-center justify-center">
-                    {service.inclusions.map((itemStr: InclusionData) => {
-                      let item;
-                      try {
-                        item =
-                          typeof itemStr === "string"
-                            ? JSON.parse(itemStr)
-                            : itemStr;
-                      } catch (error) {
-                        console.error(
-                          "Failed to parse inclusion item:",
-                          itemStr,
-                        );
-                        return null;
-                      }
-
-                      return (
-                        <Badge
-                          key={item.id}
-                          variant="secondary"
-                          className="text-[10px] uppercase tracking-wider font-medium bg-background border-border"
-                        >
-                          {item.label}
-                        </Badge>
-                      );
-                    })}
-                  </div>
                 </TableCell>
 
                 <TableCell className="text-right text-center">
