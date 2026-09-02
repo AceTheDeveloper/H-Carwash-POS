@@ -2,20 +2,40 @@ import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId, orgRole } = await auth();
+  const { userId, orgRole, sessionStatus } = await auth();
   const { pathname } = req.nextUrl;
 
-  // Ignore API routes, static files, and Next.js internal requests
   const isApiRoute =
     pathname.startsWith("/api") || pathname.startsWith("/trpc");
   const isPublicAsset = pathname.includes(".");
 
+  // 1. Skip middleware for API routes and static files
   if (isApiRoute || isPublicAsset) {
     return;
   }
 
-  if (!userId) {
-    return NextResponse.redirect(new URL("/login", req.url));
+  // 2. Unauthenticated check -> redirect to login
+  if (!userId || sessionStatus !== "active") {
+    // Prevent redirect loop if they are already on the login page
+    if (pathname !== "/login") {
+      return NextResponse.redirect(new URL("/login", req.url));
+    }
+    return;
+  }
+
+  // 3. Role-based routing with loop protection
+  // if (orgRole === "org:admin") {
+  //   // Only redirect if they are NOT already inside /admin
+  //   if (!pathname.startsWith("/admin")) {
+  //     return NextResponse.redirect(new URL("/admin", req.url));
+  //   }
+  // }
+
+  if (orgRole === "org:member") {
+    // Only redirect if they are NOT already inside /pos (fixed typo from "org:member]")
+    if (!pathname.startsWith("/pos")) {
+      return NextResponse.redirect(new URL("/pos", req.url));
+    }
   }
 });
 

@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import useServices from "@/hooks/useServices";
 import useAddOns from "@/hooks/useAddOns";
+// Mock or import your staff hook if available, e.g.: import useStaff from "@/hooks/useStaff";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
 import ServicesCard from "@/components/pos/ServicesCard";
@@ -23,19 +24,40 @@ import {
   AlertCircle,
   Tag,
   Loader2,
+  Users,
+  Banknote,
+  QrCode,
+  ChevronDown,
 } from "lucide-react";
 
 type VehicleSpecification = "4-wheels" | "2-wheels";
+type PaymentMethod = "cash" | "qr";
 
 type FormErrors = {
   customerName?: string;
   contactNumber?: string;
   plateNumber?: string;
+  paymentMethod?: string;
+  staff?: string;
 };
+
+// Mock Staff interface (Replace with your actual staff type/hook)
+interface StaffMember {
+  id: string;
+  name: string;
+}
 
 export default function Page() {
   const { data: services, isLoading: isServicesLoading } = useServices();
   const { data: addOnsData, isLoading: isAddOnsLoading } = useAddOns();
+
+  // Mock staff data list (Replace this with `useStaff()` hook if you have one)
+  const staffList: StaffMember[] = [
+    { id: "staff_1", name: "Alex Reyes" },
+    { id: "staff_2", name: "Marco Santos" },
+    { id: "staff_3", name: "Junjun Cruz" },
+    { id: "staff_4", name: "Nico Bautista" },
+  ];
 
   const [vehicleSpecification, setVehicleSpecification] =
     useState<VehicleSpecification>("4-wheels");
@@ -44,14 +66,19 @@ export default function Page() {
     null,
   );
 
-  // Selected size object { size: string, price: number } for the chosen service
   const [selectedSizeObj, setSelectedSizeObj] = useState<{
     size: string;
     price: number;
   } | null>(null);
 
-  // State for multiple selected add-ons
   const [selectedAddOns, setSelectedAddOns] = useState<AddOnsData[]>([]);
+
+  // NEW STATES: Payment Method & Multi-select Staff in Charge
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
+    null,
+  );
+  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
+  const [isStaffDropdownOpen, setIsStaffDropdownOpen] = useState(false);
 
   const [customerName, setCustomerName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
@@ -59,13 +86,11 @@ export default function Page() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Extract add-ons array safely depending on API structure
   const addOnsList: AddOnsData[] =
     addOnsData?.json?.data ||
     addOnsData?.data ||
     (Array.isArray(addOnsData) ? addOnsData : []);
 
-  // Reset selected service and size when the vehicle type specification changes
   useEffect(() => {
     setSelectedService(null);
     setSelectedSizeObj(null);
@@ -77,8 +102,6 @@ export default function Page() {
         setSelectedSizeObj(null);
         return null;
       }
-
-      // Automatically default to the first available size option for this service
       const sizes =
         (service.size as Array<{ size: string; price: number }>) || [];
       if (sizes.length > 0) {
@@ -86,12 +109,10 @@ export default function Page() {
       } else {
         setSelectedSizeObj(null);
       }
-
       return service;
     });
   };
 
-  // Toggle function for multi-select add-ons
   const toggleAddOn = (addon: AddOnsData) => {
     setSelectedAddOns((prev) => {
       const exists = prev.some((item) => item.id === addon.id);
@@ -103,6 +124,19 @@ export default function Page() {
     });
   };
 
+  // Toggle multiple staff handler
+  const toggleStaffMember = (staffId: string) => {
+    setSelectedStaff((prev) => {
+      const exists = prev.includes(staffId);
+      if (exists) {
+        return prev.filter((id) => id !== staffId);
+      } else {
+        return [...prev, staffId];
+      }
+    });
+    clearError("staff");
+  };
+
   const resetForm = () => {
     setCustomerName("");
     setPlateNumber("");
@@ -110,6 +144,8 @@ export default function Page() {
     setSelectedService(null);
     setSelectedSizeObj(null);
     setSelectedAddOns([]);
+    setPaymentMethod(null);
+    setSelectedStaff([]);
     setErrors({});
     setVehicleSpecification("4-wheels");
   };
@@ -126,6 +162,9 @@ export default function Page() {
     if (!customerName.trim()) newErrors.customerName = "Name is required";
     if (!contactNumber.trim()) newErrors.contactNumber = "Phone is required";
     if (!plateNumber.trim()) newErrors.plateNumber = "Plate number is required";
+    if (!paymentMethod) newErrors.paymentMethod = "Select payment method";
+    if (selectedStaff.length === 0)
+      newErrors.staff = "Assign at least one staff member";
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
@@ -146,6 +185,8 @@ export default function Page() {
       add_ons_price: selectedAddOns.map((addon) =>
         addon.price ? Number(addon.price) : 0,
       ),
+      payment_method: paymentMethod, // 'cash' or 'qr'
+      staff_in_charge: selectedStaff, // Array of staff IDs (One or More)
       total_price: totalPrice,
     };
 
@@ -204,16 +245,12 @@ export default function Page() {
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
                 <div className="space-y-2 relative">
-                  <Label
-                    htmlFor="customer-name"
-                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-                  >
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Name
                   </Label>
                   <div className="relative">
                     <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
                     <Input
-                      id="customer-name"
                       placeholder="Juan Dela Cruz"
                       value={customerName}
                       disabled={isSubmitting}
@@ -221,10 +258,8 @@ export default function Page() {
                         setCustomerName(e.target.value);
                         clearError("customerName");
                       }}
-                      className={`pl-9 h-11 bg-background focus-visible:ring-primary/30 ${
-                        errors.customerName
-                          ? "border-red-500 focus-visible:ring-red-500/30"
-                          : ""
+                      className={`pl-9 h-11 bg-background ${
+                        errors.customerName ? "border-red-500" : ""
                       }`}
                     />
                   </div>
@@ -235,16 +270,12 @@ export default function Page() {
                   )}
                 </div>
                 <div className="space-y-2 relative">
-                  <Label
-                    htmlFor="customer-phone"
-                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-                  >
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Phone Number
                   </Label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
                     <Input
-                      id="customer-phone"
                       type="tel"
                       placeholder="0912 345 6789"
                       value={contactNumber}
@@ -253,10 +284,8 @@ export default function Page() {
                         setContactNumber(e.target.value);
                         clearError("contactNumber");
                       }}
-                      className={`pl-9 h-11 bg-background focus-visible:ring-primary/30 ${
-                        errors.contactNumber
-                          ? "border-red-500 focus-visible:ring-red-500/30"
-                          : ""
+                      className={`pl-9 h-11 bg-background ${
+                        errors.contactNumber ? "border-red-500" : ""
                       }`}
                     />
                   </div>
@@ -267,16 +296,12 @@ export default function Page() {
                   )}
                 </div>
                 <div className="space-y-2 relative">
-                  <Label
-                    htmlFor="customer-plate"
-                    className="text-xs font-semibold text-muted-foreground uppercase tracking-wider"
-                  >
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                     Plate Number
                   </Label>
                   <div className="relative">
                     <Hash className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
                     <Input
-                      id="customer-plate"
                       placeholder="ABC 1234"
                       value={plateNumber}
                       disabled={isSubmitting}
@@ -284,10 +309,8 @@ export default function Page() {
                         setPlateNumber(e.target.value);
                         clearError("plateNumber");
                       }}
-                      className={`pl-9 h-11 bg-background focus-visible:ring-primary/30 uppercase ${
-                        errors.plateNumber
-                          ? "border-red-500 focus-visible:ring-red-500/30"
-                          : ""
+                      className={`pl-9 h-11 bg-background uppercase ${
+                        errors.plateNumber ? "border-red-500" : ""
                       }`}
                     />
                   </div>
@@ -319,14 +342,14 @@ export default function Page() {
                   <TabsTrigger
                     value="4-wheels"
                     disabled={isSubmitting}
-                    className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                    className="rounded-lg"
                   >
                     4 Wheels
                   </TabsTrigger>
                   <TabsTrigger
                     value="2-wheels"
                     disabled={isSubmitting}
-                    className="rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm"
+                    className="rounded-lg"
                   >
                     2 Wheels
                   </TabsTrigger>
@@ -349,7 +372,6 @@ export default function Page() {
                 {servicesToRender.length > 0 ? (
                   servicesToRender.map((service: ServicesData) => {
                     const isSelected = selectedService?.id === service.id;
-
                     return (
                       <div
                         key={service.id}
@@ -361,7 +383,7 @@ export default function Page() {
                         } ${isSubmitting ? "pointer-events-none opacity-60" : ""}`}
                       >
                         {isSelected && (
-                          <div className="absolute top-3 right-3 z-10 text-primary bg-background rounded-full shadow-sm animate-in zoom-in duration-200">
+                          <div className="absolute top-3 right-3 z-10 text-primary bg-background rounded-full shadow-sm">
                             <CheckCircle2 className="w-6 h-6 fill-primary text-primary-foreground" />
                           </div>
                         )}
@@ -377,15 +399,12 @@ export default function Page() {
                     <p className="text-base font-medium text-foreground">
                       No services found
                     </p>
-                    <p className="text-sm text-muted-foreground">
-                      Try selecting a different vehicle type.
-                    </p>
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Step 3: Vehicle Size Panel (Appears only when a service is selected) */}
+            {/* Step 3: Vehicle Size Panel */}
             {selectedService && (
               <div className="bg-card p-5 rounded-2xl border border-primary/40 shadow-sm space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
                 <div className="flex items-center gap-2">
@@ -405,7 +424,6 @@ export default function Page() {
                   ).map((sizeObj) => {
                     const isSizeSelected =
                       selectedSizeObj?.size === sizeObj.size;
-
                     return (
                       <button
                         key={sizeObj.size}
@@ -450,7 +468,6 @@ export default function Page() {
                     const isSelected = selectedAddOns.some(
                       (item) => item.id === addon.id,
                     );
-
                     return (
                       <div
                         key={addon.id}
@@ -459,7 +476,7 @@ export default function Page() {
                           isSelected
                             ? "border-primary bg-primary/[0.03] shadow-md shadow-primary/10"
                             : "border-border/60 bg-card hover:border-primary/40 hover:shadow-sm"
-                        } ${isSubmitting ? "pointer-events-none opacity-60" : ""}`}
+                        }`}
                       >
                         <div className="flex flex-col pr-2">
                           <span className="font-semibold text-foreground text-sm">
@@ -469,7 +486,6 @@ export default function Page() {
                             ₱
                             {Number(addon.price).toLocaleString("en-US", {
                               minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
                             })}
                           </span>
                         </div>
@@ -509,12 +525,11 @@ export default function Page() {
                     <Tag className="w-12 h-12 mb-4 text-muted-foreground/40 stroke-[1.5]" />
                     <p className="text-sm font-medium">No items selected</p>
                     <p className="text-xs mt-1 max-w-[200px]">
-                      Follow the steps on the left to build your order.
+                      Follow steps on the left to build order.
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2 duration-300">
-                    {/* Selected Service Item */}
+                  <div className="space-y-3">
                     {selectedService && (
                       <div className="p-4 bg-card border border-primary/20 rounded-xl shadow-sm relative overflow-hidden">
                         <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
@@ -529,25 +544,23 @@ export default function Page() {
                               {selectedSizeObj?.size || "Select size"}
                             </span>
                           </div>
-                          <span className="font-bold text-sm text-foreground whitespace-nowrap">
+                          <span className="font-bold text-sm text-foreground">
                             ₱
                             {servicePrice.toLocaleString("en-US", {
                               minimumFractionDigits: 2,
-                              maximumFractionDigits: 2,
                             })}
                           </span>
                         </div>
                       </div>
                     )}
 
-                    {/* Selected Add-Ons List */}
                     {selectedAddOns.map((addon) => (
                       <div
                         key={addon.id}
                         className="p-3 bg-card border border-border/60 rounded-xl shadow-sm flex justify-between items-center"
                       >
                         <div className="flex flex-col">
-                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                          <span className="text-xs font-semibold text-muted-foreground uppercase">
                             Add-On
                           </span>
                           <span className="font-medium text-foreground text-sm">
@@ -558,7 +571,6 @@ export default function Page() {
                           ₱
                           {Number(addon.price).toLocaleString("en-US", {
                             minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
                           })}
                         </span>
                       </div>
@@ -567,9 +579,117 @@ export default function Page() {
                 )}
               </div>
 
-              {/* Checkout Footer */}
-              <div className="p-5 bg-card border-t border-border/50 shadow-[0_-4px_15px_-5px_rgba(0,0,0,0.05)]">
-                <div className="flex justify-between items-center mb-5">
+              {/* Checkout Controls Section (Payment Method & Commission Staff) */}
+              <div className="p-5 bg-card border-t border-border/50 space-y-4">
+                {/* 1. Payment Method Selection */}
+                <div className="space-y-2">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Payment Method
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod("cash");
+                        clearError("paymentMethod");
+                      }}
+                      className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all ${
+                        paymentMethod === "cash"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 bg-background text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      <Banknote className="w-4 h-4" />
+                      Cash
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPaymentMethod("qr");
+                        clearError("paymentMethod");
+                      }}
+                      className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-xl border-2 text-xs font-semibold transition-all ${
+                        paymentMethod === "qr"
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border/60 bg-background text-muted-foreground hover:border-primary/40"
+                      }`}
+                    >
+                      <QrCode className="w-4 h-4" />
+                      QR Code
+                    </button>
+                  </div>
+                  {errors.paymentMethod && (
+                    <p className="text-xs text-red-500">
+                      {errors.paymentMethod}
+                    </p>
+                  )}
+                </div>
+
+                {/* 2. Staff in Charge Multi-Select Dropdown */}
+                <div className="space-y-2 relative">
+                  <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                    Staff In Charge (Commission)
+                  </label>
+
+                  <div
+                    onClick={() => setIsStaffDropdownOpen(!isStaffDropdownOpen)}
+                    className={`w-full min-h-[44px] px-3 py-2 bg-background border rounded-xl flex items-center justify-between cursor-pointer text-xs ${
+                      errors.staff ? "border-red-500" : "border-border/60"
+                    }`}
+                  >
+                    <div className="flex flex-wrap gap-1 items-center">
+                      {selectedStaff.length === 0 ? (
+                        <span className="text-muted-foreground">
+                          Select staff member(s)...
+                        </span>
+                      ) : (
+                        selectedStaff.map((id) => {
+                          const staffObj = staffList.find((s) => s.id === id);
+                          return (
+                            <span
+                              key={id}
+                              className="bg-primary/10 text-primary px-2 py-1 rounded-md font-medium text-xs"
+                            >
+                              {staffObj?.name}
+                            </span>
+                          );
+                        })
+                      )}
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+                  </div>
+
+                  {/* Dropdown Box Options */}
+                  {isStaffDropdownOpen && (
+                    <div className="absolute bottom-full mb-1 left-0 right-0 bg-card border border-border rounded-xl shadow-lg p-2 z-20 space-y-1 max-h-48 overflow-y-auto">
+                      {staffList.map((staff) => {
+                        const isChecked = selectedStaff.includes(staff.id);
+                        return (
+                          <div
+                            key={staff.id}
+                            onClick={() => toggleStaffMember(staff.id)}
+                            className="flex items-center justify-between p-2 rounded-lg hover:bg-muted/50 cursor-pointer text-xs font-medium"
+                          >
+                            <span>{staff.name}</span>
+                            <div
+                              className={`w-4 h-4 rounded flex items-center justify-center border ${isChecked ? "bg-primary border-primary text-primary-foreground" : "border-muted-foreground/40"}`}
+                            >
+                              {isChecked && (
+                                <CheckCircle2 className="w-3 h-3" />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {errors.staff && (
+                    <p className="text-xs text-red-500">{errors.staff}</p>
+                  )}
+                </div>
+
+                {/* Total Summary */}
+                <div className="flex justify-between items-center pt-2 border-t border-border/50">
                   <span className="text-base text-muted-foreground font-medium">
                     Total Amount
                   </span>
@@ -587,7 +707,7 @@ export default function Page() {
                   disabled={
                     !selectedService || !selectedSizeObj || isSubmitting
                   }
-                  className="w-full py-4 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20 hover:shadow-lg disabled:shadow-none active:scale-[0.98]"
+                  className="w-full py-4 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20"
                 >
                   {isSubmitting ? (
                     <>
@@ -597,7 +717,7 @@ export default function Page() {
                   ) : (
                     <>
                       <CreditCard className="w-5 h-5" />
-                      Proceed to Checkout
+                      Complete Transaction
                     </>
                   )}
                 </button>
