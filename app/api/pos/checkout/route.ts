@@ -17,6 +17,10 @@ export async function POST(req: NextRequest) {
       vehicle_size: body.vehicle_size,
       service_id: body.service, // Maps to selectedService.id
       service_price: body.service_price, // Snapshot of the service price
+      payment_method: body.paymentMethod,
+      status: "pending",
+      vehicle_in: new Date().toISOString(),
+      vehicle_out: null,
       total_price: body.total_price,
     };
 
