@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
     const { data, error } = await supabase
       .from("transactions")
       .select("*, transaction_add_ons(*)")
-      .in("status", ["pending", "in_progress", "completed"])
+      .in("status", ["pending", "in_progress"])
       .order("vehicle_in", { ascending: true });
 
     if (error) {

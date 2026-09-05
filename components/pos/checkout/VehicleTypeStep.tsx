@@ -32,14 +32,14 @@ export default function VehicleTypeStep({
           <TabsTrigger
             value="4-wheels"
             disabled={isSubmitting}
-            className="rounded-lg"
+            className="rounded-lg font-semibold border border-transparent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary-dark data-[state=active]:shadow-sm"
           >
             4 Wheels
           </TabsTrigger>
           <TabsTrigger
             value="2-wheels"
             disabled={isSubmitting}
-            className="rounded-lg"
+            className="rounded-lg font-semibold border border-transparent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary-dark data-[state=active]:shadow-sm"
           >
             2 Wheels
           </TabsTrigger>
