@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
+import { PromoData } from "@/types/PromoData";
 import {
   PaymentMethod,
   StaffMember,
@@ -28,6 +29,7 @@ interface Props {
   staffList: StaffMember[];
   totalPrice: number;
   isSubmitting: boolean;
+  selectedPromo: PromoData | null;
   canSubmit: boolean;
   onSubmit: () => void;
 }
@@ -40,6 +42,7 @@ export default function OrderSummary({
   selectedAddOns,
   paymentMethod,
   selectedStaff,
+  selectedPromo,
   staffList,
   totalPrice,
   isSubmitting,

@@ -1,8 +1,6 @@
 "use client";
 
-import * as React from "react";
 import { NavMain } from "@/components/nav-main";
-import { NavProjects } from "@/components/nav-projects";
 import { NavUser } from "@/components/nav-user";
 import { TeamSwitcher } from "@/components/team-switcher";
 import {
@@ -14,16 +12,13 @@ import {
 } from "@/components/ui/sidebar";
 import {
   GalleryVerticalEndIcon,
-  AudioLinesIcon,
-  TerminalIcon,
-  FrameIcon,
-  PieChartIcon,
-  MapIcon,
   LayoutDashboardIcon,
-  WrenchIcon,
-  TagsIcon,
   ReceiptIcon,
+  TagsIcon,
+  UsersIcon,
+  WrenchIcon,
 } from "lucide-react"; // Added new icons
+import * as React from "react";
 
 // Updated sample data with requested navigation
 const data = {
@@ -34,19 +29,9 @@ const data = {
   },
   teams: [
     {
-      name: "Acme Inc",
+      name: "H Breakfast to Bar",
       logo: <GalleryVerticalEndIcon />,
-      plan: "Enterprise",
-    },
-    {
-      name: "Acme Corp.",
-      logo: <AudioLinesIcon />,
-      plan: "Startup",
-    },
-    {
-      name: "Evil Corp.",
-      logo: <TerminalIcon />,
-      plan: "Free",
+      plan: "",
     },
   ],
   navMain: [
@@ -67,26 +52,14 @@ const data = {
       icon: <TagsIcon />,
     },
     {
+      title: "Staff & Commissions",
+      url: "/admin/staffs",
+      icon: <UsersIcon />,
+    },
+    {
       title: "Transactions",
       url: "/admin/transactions",
       icon: <ReceiptIcon />,
-    },
-  ],
-  projects: [
-    {
-      name: "Design Engineering",
-      url: "#",
-      icon: <FrameIcon />,
-    },
-    {
-      name: "Sales & Marketing",
-      url: "#",
-      icon: <PieChartIcon />,
-    },
-    {
-      name: "Travel",
-      url: "#",
-      icon: <MapIcon />,
     },
   ],
 };

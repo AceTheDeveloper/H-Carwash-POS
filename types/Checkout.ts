@@ -1,5 +1,6 @@
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
+import { PromoData } from "./PromoData";
 
 export type VehicleSpecification = "4-wheels" | "2-wheels";
 export type PaymentMethod = "cash" | "qr";
@@ -35,4 +36,5 @@ export interface CheckoutPayload {
   payment_method: PaymentMethod;
   staff_in_charge: string[];
   total_price: number;
+  promo: PromoData | null;
 }

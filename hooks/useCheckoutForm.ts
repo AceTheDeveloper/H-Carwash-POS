@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
+import { PromoData } from "@/types/PromoData";
 import {
   VehicleSpecification,
   PaymentMethod,
@@ -30,6 +31,7 @@ export function useCheckoutForm() {
   const [plateNumber, setPlateNumber] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [errors, setErrors] = useState<FormErrors>({});
+  const [selectedPromo, setSelectedPromo] = useState<PromoData | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Reset service selection when vehicle type changes
@@ -81,6 +83,7 @@ export function useCheckoutForm() {
     setPaymentMethod(null);
     setSelectedStaff([]);
     setErrors({});
+    setSelectedPromo(null);
     setVehicleSpecification("4-wheels");
   };
 
@@ -89,7 +92,18 @@ export function useCheckoutForm() {
     (sum, item) => sum + (Number(item.price) || 0),
     0,
   );
-  const totalPrice = servicePrice + addOnsTotalPrice;
+
+  let totalPrice = servicePrice + addOnsTotalPrice;
+
+  if (selectedPromo) {
+    totalPrice =
+      selectedPromo.discount_type === "fixed_amount"
+        ? totalPrice - selectedPromo.value
+        : totalPrice - totalPrice * (selectedPromo.value / 100);
+
+    // Prevent the total price from dropping below 0
+    totalPrice = Math.max(0, totalPrice);
+  }
 
   const validate = (): FormErrors => {
     const newErrors: FormErrors = {};
@@ -125,6 +139,7 @@ export function useCheckoutForm() {
       payment_method: paymentMethod,
       staff_in_charge: selectedStaff,
       total_price: totalPrice,
+      promo: selectedPromo,
     };
 
     setIsSubmitting(true);
@@ -153,6 +168,7 @@ export function useCheckoutForm() {
     isSubmitting,
     servicePrice,
     addOnsTotalPrice,
+    selectedPromo,
     totalPrice,
     // setters
     setVehicleSpecification,
@@ -161,6 +177,7 @@ export function useCheckoutForm() {
     setCustomerName,
     setPlateNumber,
     setContactNumber,
+    setSelectedPromo,
     // handlers
     toggleService,
     toggleAddOn,

@@ -4,15 +4,18 @@ import { useState } from "react";
 import useServices from "@/hooks/useServices";
 import useAddOns from "@/hooks/useAddOns";
 import useTransactions from "@/hooks/useTransactions";
+import usePromos from "@/hooks/usePromos";
 import { useCheckoutForm } from "@/hooks/useCheckoutForm";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
+import { PromoData } from "@/types/PromoData"; // <-- Added
 import { StaffMember } from "@/types/Checkout";
 
 import CustomerInfoForm from "@/components/pos/checkout/CustomerInfoForm";
 import VehicleTypeStep from "@/components/pos/checkout/VehicleTypeStep";
 import ServiceStep from "@/components/pos/checkout/ServiceStep";
 import AddOnsStep from "@/components/pos/checkout/AddOnsStep";
+import PromosStep from "@/components/pos/checkout/PromoStep"; // <-- Added
 import PaymentMethodStep from "@/components/pos/checkout/PaymentMethodStep";
 import StaffStep from "@/components/pos/checkout/StaffStep";
 import OrderSummary from "@/components/pos/checkout/OrderSummary";
@@ -30,9 +33,11 @@ const staffList: StaffMember[] = [
 export default function Page() {
   const { data: services, isLoading: isServicesLoading } = useServices();
   const { data: addOnsData, isLoading: isAddOnsLoading } = useAddOns();
-  const queryClient = useQueryClient();
   const { data: transactionsData, isLoading: isTransactionsLoading } =
     useTransactions("pending,in_progress");
+  const { data: promoData, isLoading: isPromoLoading } = usePromos();
+  const queryClient = useQueryClient();
+
   const [isQueueOpen, setIsQueueOpen] = useState(false);
 
   const form = useCheckoutForm();
@@ -44,9 +49,16 @@ export default function Page() {
     addOnsData?.data ||
     (Array.isArray(addOnsData) ? addOnsData : []);
 
+  // Parse and filter promos to only show active ones
+  const rawPromoList: PromoData[] =
+    promoData?.json?.data ||
+    promoData?.data ||
+    (Array.isArray(promoData) ? promoData : []);
+  const activePromos = rawPromoList.filter((promo) => promo.is_active);
+
   const queueList = transactionsData?.data || transactionsData || [];
 
-  if (isServicesLoading || isAddOnsLoading) return null;
+  if (isServicesLoading || isAddOnsLoading || isPromoLoading) return null;
 
   const servicesToRender: ServicesData[] =
     services?.filter(
@@ -123,6 +135,14 @@ export default function Page() {
               onToggle={form.toggleAddOn}
             />
 
+            {/* Replaced comment with actual Component */}
+            <PromosStep
+              promos={activePromos}
+              selectedPromo={form.selectedPromo} // Note: Ensure this exists in useCheckoutForm
+              isSubmitting={form.isSubmitting}
+              onSelect={(promo: PromoData) => form.setSelectedPromo(promo)} // Note: Ensure this exists in useCheckoutForm
+            />
+
             <PaymentMethodStep
               value={form.paymentMethod}
               error={form.errors.paymentMethod}
@@ -149,10 +169,11 @@ export default function Page() {
                 vehicleSpecification={form.vehicleSpecification}
                 servicePrice={form.servicePrice}
                 selectedAddOns={form.selectedAddOns}
+                selectedPromo={form.selectedPromo} // <-- Pass this to OrderSummary to calculate the discount!
                 paymentMethod={form.paymentMethod}
                 selectedStaff={form.selectedStaff}
                 staffList={staffList}
-                totalPrice={form.totalPrice}
+                totalPrice={form.totalPrice} // <-- Make sure this hook calculates total AFTER promo
                 isSubmitting={form.isSubmitting}
                 canSubmit={canSubmit}
                 onSubmit={form.onSubmit}

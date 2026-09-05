@@ -1,3 +1,5 @@
+import { PromoData } from "./PromoData";
+
 export type VehicleClassification = "4 Wheels" | "2 Wheels";
 
 export type VehicleSize =
@@ -37,5 +39,6 @@ export interface POSPayload {
   service: string; // Service ID
   service_price: number; // Snapshot price of the service
   add_ons: AddOnItem[]; // Array of add-ons with their snapshot prices
+  selected_promo: PromoData;
   total_price: number; // Combined total
 }
