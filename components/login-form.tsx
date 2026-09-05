@@ -1,9 +1,11 @@
 "use client";
 
-import { useSignIn } from "@clerk/nextjs";
+import { useSignIn, useClerk } from "@clerk/nextjs";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Controller, useForm } from "react-hook-form";
+import { useState } from "react";
+import { LoaderCircle, AlertCircle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,10 +16,8 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-
 import googleIcon from "@/assets/icons/google.png";
 import { LoginPayload } from "@/types/LoginPayload";
-import { useClerk } from "@clerk/nextjs";
 
 export function LoginForm({
   className,
@@ -26,8 +26,15 @@ export function LoginForm({
   const router = useRouter();
   const { signIn } = useSignIn();
   const { setActive } = useClerk();
+  const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const { control, handleSubmit } = useForm<LoginPayload>({
+  // Destructured setError and errors from formState
+  const {
+    control,
+    handleSubmit,
+    setError,
+    formState: { errors },
+  } = useForm<LoginPayload>({
     defaultValues: {
       email: "",
       password: "",
@@ -35,6 +42,8 @@ export function LoginForm({
   });
 
   async function onSubmit(data: LoginPayload) {
+    setIsLoading(true);
+
     try {
       await signIn.password({
         emailAddress: data.email,
@@ -44,14 +53,11 @@ export function LoginForm({
       if (signIn.status === "complete") {
         await signIn.finalize({
           navigate: async ({ session, decorateUrl }) => {
-            // Check if the choose-organization task is pending
             if (session?.currentTask?.key === "choose-organization") {
-              // Retrieve the user's first available organization membership
               const userOrgId =
                 session.user?.organizationMemberships?.[0]?.organization?.id ||
                 process.env.CLERK_ORGANIZATION_ID;
 
-              // Activate the organization to clear the pending session task
               await setActive({
                 session: session.id,
                 organization: userOrgId,
@@ -65,6 +71,16 @@ export function LoginForm({
       }
     } catch (err: any) {
       console.error("Sign-in error:", err);
+      // Extract Clerk's readable error message, or provide a fallback
+      const errorMessage =
+        err.errors?.[0]?.longMessage ||
+        err.errors?.[0]?.message ||
+        "Invalid credentials. Please try again.";
+
+      // Set a root error for the form
+      setError("root", { type: "manual", message: errorMessage });
+    } finally {
+      setIsLoading(false);
     }
   }
 
@@ -82,6 +98,14 @@ export function LoginForm({
           </p>
         </div>
 
+        {/* Display Global/Clerk Errors here */}
+        {errors.root && (
+          <div className="flex items-center gap-2 p-3 text-sm text-red-500 bg-red-500/10 rounded-md border border-red-500/20">
+            <AlertCircle className="size-4 shrink-0" />
+            <p>{errors.root.message}</p>
+          </div>
+        )}
+
         <Controller
           control={control}
           name="email"
@@ -95,9 +119,16 @@ export function LoginForm({
                 value={value}
                 onChange={onChange}
                 placeholder="m@example.com"
-                required
-                className="rounded-md"
+                className={cn(
+                  "rounded-md",
+                  errors.email && "border-red-500 focus-visible:ring-red-500",
+                )}
               />
+              {errors.email && (
+                <p className="text-xs text-red-500 mt-1">
+                  {errors.email.message}
+                </p>
+              )}
             </Field>
           )}
         />
@@ -117,21 +148,38 @@ export function LoginForm({
             name="password"
             rules={{ required: "Password is required" }}
             render={({ field: { value, onChange } }) => (
-              <Input
-                value={value}
-                onChange={onChange}
-                id="password"
-                type="password"
-                required
-                className="rounded-md"
-              />
+              <div className="flex flex-col">
+                <Input
+                  value={value}
+                  onChange={onChange}
+                  id="password"
+                  type="password"
+                  className={cn(
+                    "rounded-md",
+                    errors.password &&
+                      "border-red-500 focus-visible:ring-red-500",
+                  )}
+                />
+                {errors.password && (
+                  <p className="text-xs text-red-500 mt-1">
+                    {errors.password.message}
+                  </p>
+                )}
+              </div>
             )}
           />
         </Field>
 
         <Field>
-          <Button type="submit" className="rounded-md">
-            Login
+          <Button type="submit" className="rounded-md" disabled={isLoading}>
+            {isLoading ? (
+              <>
+                <LoaderCircle className="mr-2 size-4 animate-spin" />
+                Logging in...
+              </>
+            ) : (
+              "Login"
+            )}
           </Button>
         </Field>
 
@@ -140,12 +188,17 @@ export function LoginForm({
         </FieldSeparator>
 
         <Field>
-          <Button variant="outline" type="button" className="rounded-md">
+          <Button
+            variant="outline"
+            type="button"
+            className="rounded-md"
+            disabled={isLoading}
+          >
             <Image
               alt="Google icon"
               priority
               src={googleIcon}
-              className="size-4"
+              className="size-4 mr-2"
             />
             Login with Google
           </Button>
