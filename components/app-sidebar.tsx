@@ -53,7 +53,7 @@ const data = {
     },
     {
       title: "Staff & Commissions",
-      url: "/admin/staffs",
+      url: "/admin/staff",
       icon: <UsersIcon />,
     },
     {

@@ -12,6 +12,7 @@ import {
   SizeOption,
   CheckoutPayload,
 } from "@/types/Checkout";
+import { StaffData } from "@/types/StaffData";
 
 export function useCheckoutForm() {
   const [vehicleSpecification, setVehicleSpecification] =
@@ -26,7 +27,7 @@ export function useCheckoutForm() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
   );
-  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<StaffData[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [contactNumber, setContactNumber] = useState("");

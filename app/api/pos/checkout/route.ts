@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
       vehicle_size: body.vehicle_size,
       service_id: body.service, // Maps to selectedService.id
       service_price: body.service_price, // Snapshot of the service price
-      payment_method: body.paymentMethod,
+      payment_method: body.payment_method,
       status: "pending",
       promo: body.promo,
       vehicle_in: new Date().toISOString(),
@@ -49,11 +49,10 @@ export async function POST(req: NextRequest) {
       Array.isArray(body.add_ons) &&
       body.add_ons.length > 0
     ) {
-      // Map the parallel arrays (add_ons and add_ons_price) from the frontend
       const addOnsData = body.add_ons.map((addonId: string, index: number) => ({
         transaction_id: transaction.id,
         add_on_id: addonId,
-        price: body.add_ons_price[index] || 0, // Snapshot price of the specific add-on
+        price: body.add_ons_price[index] || 0,
       }));
 
       const { error: addOnsError } = await supabase
@@ -72,9 +71,38 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Success
+    // 3. Prepare and insert the assigned staff (if any exist)
+    if (
+      body.staff_in_charge &&
+      Array.isArray(body.staff_in_charge) &&
+      body.staff_in_charge.length > 0
+    ) {
+      const staffData = body.staff_in_charge.map((staffId: string) => ({
+        transaction_id: transaction.id,
+        staff_id: staffId,
+        // commission_amount + commission_rate_used stay null until
+        // the order is marked "completed" (calculated in the status route)
+      }));
+
+      const { error: staffError } = await supabase
+        .from("transaction_staff")
+        .insert(staffData);
+
+      if (staffError) {
+        console.log("Staff Assignment Insert Error:", staffError.message);
+        return NextResponse.json(
+          {
+            message: "Transaction created, but failed to assign staff",
+            error: staffError.message,
+          },
+          { status: 500 },
+        );
+      }
+    }
+
+    // 4. Success
     return NextResponse.json(
-      { message: "Transaction and add-ons inserted successfully" },
+      { message: "Transaction, add-ons, and staff inserted successfully" },
       { status: 201 },
     );
   } catch (error: any) {

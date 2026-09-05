@@ -9,7 +9,7 @@ import { useCheckoutForm } from "@/hooks/useCheckoutForm";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "@/types/PromoData"; // <-- Added
-import { StaffMember } from "@/types/Checkout";
+import { StaffData } from "@/types/StaffData";
 
 import CustomerInfoForm from "@/components/pos/checkout/CustomerInfoForm";
 import VehicleTypeStep from "@/components/pos/checkout/VehicleTypeStep";
@@ -22,13 +22,7 @@ import OrderSummary from "@/components/pos/checkout/OrderSummary";
 import QueueSheet from "@/components/pos/checkout/QueueSheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTransactionsRealtime } from "@/hooks/useTransactionsRealtime";
-
-const staffList: StaffMember[] = [
-  { id: "staff_1", name: "Alex Reyes" },
-  { id: "staff_2", name: "Marco Santos" },
-  { id: "staff_3", name: "Junjun Cruz" },
-  { id: "staff_4", name: "Nico Bautista" },
-];
+import useStaff from "@/hooks/useStaff";
 
 export default function Page() {
   const { data: services, isLoading: isServicesLoading } = useServices();
@@ -36,6 +30,7 @@ export default function Page() {
   const { data: transactionsData, isLoading: isTransactionsLoading } =
     useTransactions("pending,in_progress");
   const { data: promoData, isLoading: isPromoLoading } = usePromos();
+  const { data: staffData, isLoading: isStaffDataLoading } = useStaff();
   const queryClient = useQueryClient();
 
   const [isQueueOpen, setIsQueueOpen] = useState(false);
@@ -58,7 +53,13 @@ export default function Page() {
 
   const queueList = transactionsData?.data || transactionsData || [];
 
-  if (isServicesLoading || isAddOnsLoading || isPromoLoading) return null;
+  if (
+    isServicesLoading ||
+    isAddOnsLoading ||
+    isPromoLoading ||
+    isStaffDataLoading
+  )
+    return null;
 
   const servicesToRender: ServicesData[] =
     services?.filter(
@@ -154,7 +155,7 @@ export default function Page() {
             />
 
             <StaffStep
-              staffList={staffList}
+              staffList={staffData}
               selectedStaff={form.selectedStaff}
               error={form.errors.staff}
               onToggle={form.toggleStaffMember}
@@ -172,7 +173,7 @@ export default function Page() {
                 selectedPromo={form.selectedPromo} // <-- Pass this to OrderSummary to calculate the discount!
                 paymentMethod={form.paymentMethod}
                 selectedStaff={form.selectedStaff}
-                staffList={staffList}
+                staffList={staffData}
                 totalPrice={form.totalPrice} // <-- Make sure this hook calculates total AFTER promo
                 isSubmitting={form.isSubmitting}
                 canSubmit={canSubmit}

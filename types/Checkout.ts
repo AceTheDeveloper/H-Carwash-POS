@@ -1,6 +1,7 @@
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "./PromoData";
+import { StaffData } from "./StaffData";
 
 export type VehicleSpecification = "4-wheels" | "2-wheels";
 export type PaymentMethod = "cash" | "qr";
@@ -12,11 +13,6 @@ export type FormErrors = {
   paymentMethod?: string;
   staff?: string;
 };
-
-export interface StaffMember {
-  id: string;
-  name: string;
-}
 
 export interface SizeOption {
   size: string;
@@ -34,7 +30,7 @@ export interface CheckoutPayload {
   add_ons: string[];
   add_ons_price: number[];
   payment_method: PaymentMethod;
-  staff_in_charge: string[];
+  staff_in_charge: StaffData[];
   total_price: number;
   promo: PromoData | null;
 }
