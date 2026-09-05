@@ -45,10 +45,20 @@ export function LoginForm({
     setIsLoading(true);
 
     try {
-      await signIn.password({
+      const { error } = await signIn.password({
         emailAddress: data.email,
         password: data.password,
       });
+
+      if (error) {
+        const errorMessage =
+          error.longMessage ||
+          error.message ||
+          "Invalid credentials. Please try again.";
+        console.log("HELLOOO", errorMessage);
+        setError("root", { type: "manual", message: errorMessage });
+        return; // stop here, don't try to finalize
+      }
 
       if (signIn.status === "complete") {
         await signIn.finalize({
@@ -70,15 +80,12 @@ export function LoginForm({
         });
       }
     } catch (err: any) {
-      console.error("Sign-in error:", err);
-      // Extract Clerk's readable error message, or provide a fallback
-      const errorMessage =
-        err.errors?.[0]?.longMessage ||
-        err.errors?.[0]?.message ||
-        "Invalid credentials. Please try again.";
-
-      // Set a root error for the form
-      setError("root", { type: "manual", message: errorMessage });
+      // fallback for unexpected/network errors — these still throw
+      console.log("HELLOOO (catch)", err);
+      setError("root", {
+        type: "manual",
+        message: "Something went wrong. Please try again.",
+      });
     } finally {
       setIsLoading(false);
     }
