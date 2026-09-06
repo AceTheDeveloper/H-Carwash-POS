@@ -3,8 +3,10 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ClerkProvider } from "@clerk/nextjs";
+import { QueryClient } from "@tanstack/react-query";
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
-import { Providers } from "./provider";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,9 +19,11 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "H Breakfast to Bar",
-  description: "H Breakfast to Bar Car Wash Point of sales",
+  title: "H BREAKFAST TO BAR",
+  description: "CARWASH POS",
 };
+
+const queryClient = new QueryClient();
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
@@ -35,7 +39,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <body className="min-h-full bg-surface">
         <ClerkProvider>
-          <Providers>{children}</Providers>
+          <QueryClientProvider client={queryClient}>
+            {children}
+            <ReactQueryDevtools initialIsOpen={false} />
+          </QueryClientProvider>
         </ClerkProvider>
       </body>
     </html>
