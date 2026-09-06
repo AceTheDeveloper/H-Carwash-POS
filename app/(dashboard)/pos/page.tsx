@@ -141,7 +141,7 @@ export default function Page() {
               promos={activePromos}
               selectedPromo={form.selectedPromo} // Note: Ensure this exists in useCheckoutForm
               isSubmitting={form.isSubmitting}
-              onSelect={(promo: PromoData) => form.setSelectedPromo(promo)} // Note: Ensure this exists in useCheckoutForm
+              onSelect={form.setSelectedPromo}
             />
 
             <PaymentMethodStep

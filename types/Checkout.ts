@@ -19,6 +19,8 @@ export interface SizeOption {
   price: number;
 }
 
+export type StaffMember = StaffData;
+
 export interface CheckoutPayload {
   customer_name: string;
   contact_number: string;
@@ -30,7 +32,7 @@ export interface CheckoutPayload {
   add_ons: string[];
   add_ons_price: number[];
   payment_method: PaymentMethod;
-  staff_in_charge: StaffData[];
+  staff_in_charge: string[];
   total_price: number;
   promo: PromoData | null;
 }

@@ -18,7 +18,10 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(data, { status: 200 });
   } catch (error) {
-    console.log("Error : ", error.message);
+    console.log(
+      "Error : ",
+      error instanceof Error ? error.message : "Unknown error",
+    );
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 },
@@ -41,7 +44,10 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ message: "Data inserted" }, { status: 200 });
   } catch (error) {
-    console.log("Error : ", error.message);
+    console.log(
+      "Error : ",
+      error instanceof Error ? error.message : "Unknown error",
+    );
     return NextResponse.json(
       { message: "Internal Server Error" },
       { status: 500 },

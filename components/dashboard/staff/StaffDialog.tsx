@@ -41,11 +41,13 @@ export default function StaffDialog({ onSubmit }: Props) {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm">
-          <Plus className="mr-2 h-4 w-4" />
-          Add Staff
-        </Button>
+      <DialogTrigger
+        render={
+          <Button className="w-full sm:w-auto bg-primary text-primary-foreground hover:bg-primary/90 shadow-sm" />
+        }
+      >
+        <Plus className="mr-2 h-4 w-4" />
+        Add Staff
       </DialogTrigger>
       <DialogContent className="sm:max-w-sm">
         <DialogHeader>

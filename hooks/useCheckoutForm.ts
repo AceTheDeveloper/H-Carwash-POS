@@ -27,7 +27,7 @@ export function useCheckoutForm() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
   );
-  const [selectedStaff, setSelectedStaff] = useState<StaffData[]>([]);
+  const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
   const [contactNumber, setContactNumber] = useState("");
