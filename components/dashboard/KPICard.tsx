@@ -25,7 +25,6 @@ export default function KPICard({
       className={`rounded-md shadow-sm border border-border/40 ${isHighlight ? "bg-surface ring-1 ring-primary/20" : "bg-surface"}`}
     >
       <CardContent className="flex flex-col justify-between h-full space-y-4">
-        {/* Top Meta row */}
         <div className="flex justify-between items-start">
           <span className="text-sm font-medium text-text-secondary tracking-tight">
             {title}
@@ -37,7 +36,6 @@ export default function KPICard({
           </div>
         </div>
 
-        {/* Core numbers */}
         <div className="space-y-1">
           <h3 className="text-2xl font-bold tracking-tight text-text-primary">
             {value}
@@ -47,7 +45,6 @@ export default function KPICard({
           </p>
         </div>
 
-        {/* Contextual Trend Footer */}
         {trend && (
           <div className="pt-2 border-t border-border/30 flex items-center gap-1.5 text-xs">
             <span

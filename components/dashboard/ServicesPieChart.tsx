@@ -1,3 +1,4 @@
+// components/dashboard/ServicesPieChart.tsx
 "use client";
 
 import { Pie, PieChart, Label, Cell } from "recharts";
@@ -14,28 +15,19 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
-const chartData = [
-  { service: "Premium Medium", count: 142, fill: "var(--color-primary)" },
-  { service: "Basic Eco", count: 88, fill: "var(--color-primary-light)" },
-  { service: "Interior Detailing", count: 45, fill: "var(--color-secondary)" },
-  { service: "Wax & Shine", count: 32, fill: "var(--color-secondary-light)" },
-];
-
 const chartConfig = {
   count: { label: "Availed Tickets" },
-  "Premium Medium": { label: "Premium Medium", color: "var(--color-primary)" },
-  "Basic Eco": { label: "Basic Eco", color: "var(--color-primary-light)" },
-  "Interior Detailing": {
-    label: "Interior Detailing",
-    color: "var(--color-secondary)",
-  },
-  "Wax & Shine": {
-    label: "Wax & Shine",
-    color: "var(--color-secondary-light)",
-  },
 };
 
-export function ServicesPieChart() {
+interface ServicesPieChartProps {
+  chartData?: { service: string; count: number; fill: string }[];
+  totalCount?: number;
+}
+
+export function ServicesPieChart({
+  chartData = [],
+  totalCount = 0,
+}: ServicesPieChartProps) {
   return (
     <Card className="rounded-md border border-border bg-surface shadow-sm flex flex-col h-full overflow-hidden p-0">
       <CardHeader className="p-6 border-b border-border/40 bg-background/30">
@@ -84,7 +76,7 @@ export function ServicesPieChart() {
                           y={viewBox.cy}
                           className="fill-text-primary text-3xl font-extrabold tracking-tight"
                         >
-                          307
+                          {totalCount}
                         </tspan>
                         <tspan
                           x={viewBox.cx}
