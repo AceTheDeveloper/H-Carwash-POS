@@ -3,21 +3,34 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
-    const { data, error } = await supabase
+    // 1. Get the status from the URL query params
+    const statusParam = req.nextUrl.searchParams.get("status");
+
+    // 2. Start building the query WITHOUT the status filter yet
+    let query = supabase
       .from("transactions")
-      .select("*, transaction_add_ons(*)")
-      .in("status", ["pending", "in_progress"])
-      .order("vehicle_in", { ascending: true });
+      .select("*, transaction_add_ons(*), services(*)")
+      .order("vehicle_in", { ascending: false }); // usually admin pages want newest first
+
+    // 3. If a status was passed, apply the filter dynamically
+    if (statusParam) {
+      // split "pending,in_progress" -> ["pending", "in_progress"]
+      const statusArray = statusParam.split(",");
+      query = query.in("status", statusArray);
+    }
+
+    // 4. Execute the query
+    const { data, error } = await query;
 
     if (error) {
-      console.log("Fetch Pending Orders Error:", error.message);
+      console.log("Fetch Transactions Error:", error.message);
       return NextResponse.json(
-        { message: "Failed to fetch pending orders", error: error.message },
+        { message: "Failed to fetch transactions", error: error.message },
         { status: 500 },
       );
     }
 
-    return NextResponse.json({ data }, { status: 200 });
+    return NextResponse.json(data, { status: 200 });
   } catch (error: any) {
     console.error("API Error:", error);
     return NextResponse.json(
