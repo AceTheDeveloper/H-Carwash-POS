@@ -10,6 +10,7 @@ import {
   SidebarHeader,
   SidebarRail,
 } from "@/components/ui/sidebar";
+import { useAuth } from "@clerk/nextjs";
 import {
   GalleryVerticalEndIcon,
   LayoutDashboardIcon,
@@ -24,8 +25,8 @@ import * as React from "react";
 // Updated sample data with requested navigation
 const data = {
   user: {
-    name: "shadcn",
-    email: "m@example.com",
+    name: "H Breakfast to Bar",
+    email: "heroiloilo23@gmail.com",
     avatar: "/avatars/shadcn.jpg",
   },
   teams: [
@@ -71,6 +72,8 @@ const data = {
 };
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  const { signOut } = useAuth();
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>
@@ -81,7 +84,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
         <NavMain items={data.navMain} />
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        <NavUser user={data.user} onLogout={signOut} />
       </SidebarFooter>
       <SidebarRail />
     </Sidebar>
