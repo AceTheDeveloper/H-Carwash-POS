@@ -27,8 +27,8 @@ export function LoginForm({
   const { signIn } = useSignIn();
   const { setActive } = useClerk();
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
-  // Destructured setError and errors from formState
   const {
     control,
     handleSubmit,
@@ -55,9 +55,8 @@ export function LoginForm({
           error.longMessage ||
           error.message ||
           "Invalid credentials. Please try again.";
-        console.log("HELLOOO", errorMessage);
         setError("root", { type: "manual", message: errorMessage });
-        return; // stop here, don't try to finalize
+        return;
       }
 
       if (signIn.status === "complete") {
@@ -80,14 +79,32 @@ export function LoginForm({
         });
       }
     } catch (err: any) {
-      // fallback for unexpected/network errors — these still throw
-      console.log("HELLOOO (catch)", err);
       setError("root", {
         type: "manual",
         message: "Something went wrong. Please try again.",
       });
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  // Handle Google OAuth sign-in flow
+  async function handleGoogleSignIn() {
+    setIsGoogleLoading(true);
+    try {
+      await signIn.sso({
+        strategy: "oauth_google",
+        redirectCallbackUrl: "/sso-callback",
+        redirectUrl: "/dashboard",
+      });
+      // Browser navigates away to Google here — no further code runs
+    } catch (err: any) {
+      console.error("Google sign-in error:", err);
+      setError("root", {
+        type: "manual",
+        message: "Failed to initialize Google login. Please try again.",
+      });
+      setIsGoogleLoading(false);
     }
   }
 
@@ -105,7 +122,6 @@ export function LoginForm({
           </p>
         </div>
 
-        {/* Display Global/Clerk Errors here */}
         {errors.root && (
           <div className="flex items-center gap-2 p-3 text-sm text-red-500 bg-red-500/10 rounded-md border border-red-500/20">
             <AlertCircle className="size-4 shrink-0" />
@@ -178,7 +194,12 @@ export function LoginForm({
         </Field>
 
         <Field>
-          <Button type="submit" className="rounded-md" disabled={isLoading}>
+          <Button
+            type="submit"
+            className="rounded-md"
+            md-disabled={isLoading}
+            disabled={isLoading}
+          >
             {isLoading ? (
               <>
                 <LoaderCircle className="mr-2 size-4 animate-spin" />
@@ -200,6 +221,7 @@ export function LoginForm({
             type="button"
             className="rounded-md"
             disabled={isLoading}
+            onClick={handleGoogleSignIn}
           >
             <Image
               alt="Google icon"
