@@ -14,8 +14,6 @@ export default async function TransactionsPage() {
     console.error("Failed to fetch transactions:", error.message);
   }
 
-  console.log(rawTransactions);
-
   const transactions: TransactionData[] = rawTransactions || [];
 
   // 2. Calculate Real-Time KPIs for TODAY
