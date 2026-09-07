@@ -14,15 +14,20 @@ import useServices from "@/hooks/useServices";
 import ServicesEditDialog from "@/components/dashboard/services/ServicesEditDialog";
 import { useState } from "react";
 import DeleteDialog from "@/components/reusables/DeleteDialog";
-import { api } from "@/lib/api"; // Make sure to import your API client
-import { useQueryClient } from "@tanstack/react-query"; // Import to refresh table
+import { api } from "@/lib/api";
+import { useQueryClient } from "@tanstack/react-query";
 
 interface Props {
   search: string;
   setSearch: () => void;
+  sort?: string; // Added sort prop here
 }
 
-export default function ServicesTable({ search, setSearch }: Props) {
+export default function ServicesTable({
+  search,
+  setSearch,
+  sort = "name-asc",
+}: Props) {
   const { data: serviceList, isLoading } = useServices();
   const queryClient = useQueryClient();
 
@@ -56,7 +61,6 @@ export default function ServicesTable({ search, setSearch }: Props) {
     try {
       await api.delete(`/api/services/${serviceToDelete.id}`);
 
-      // Close dialog and refresh data
       setIsDeleteDialogOpen(false);
       setServiceToDelete(null);
       queryClient.invalidateQueries({ queryKey: ["services"] });
@@ -69,11 +73,41 @@ export default function ServicesTable({ search, setSearch }: Props) {
 
   if (isLoading) return null;
 
-  const filteredServices: ServicesData[] = serviceList.filter(
+  // 1. Filter by search query
+  const filteredServices: ServicesData[] = (serviceList || []).filter(
     (service: ServicesData) => {
       return service.service_name.toLowerCase().includes(search.toLowerCase());
     },
   );
+
+  // 2. Helper to get the base price of a service for sorting purposes
+  const getMinPrice = (service: ServicesData) => {
+    const sizes = Array.isArray(service.size)
+      ? service.size
+      : typeof service.size === "string"
+        ? JSON.parse(service.size)
+        : [];
+    if (sizes.length === 0) return 0;
+    // Return the lowest price among sizes or fallback to 0
+    return Math.min(...sizes.map((s: any) => Number(s.price) || 0));
+  };
+
+  // 3. Sort filtered services based on selected dropdown value
+  const sortedServices = [...filteredServices].sort((a, b) => {
+    if (sort === "name-asc") {
+      return a.service_name.localeCompare(b.service_name);
+    }
+    if (sort === "name-desc") {
+      return b.service_name.localeCompare(a.service_name);
+    }
+    if (sort === "price-asc") {
+      return getMinPrice(a) - getMinPrice(b);
+    }
+    if (sort === "price-desc") {
+      return getMinPrice(b) - getMinPrice(a);
+    }
+    return 0;
+  });
 
   return (
     <div className="w-full">
@@ -87,7 +121,7 @@ export default function ServicesTable({ search, setSearch }: Props) {
               Service Name
             </TableHead>
             <TableHead className="font-semibold text-foreground text-center">
-              Sizes
+              Sizes & Prices
             </TableHead>
             <TableHead className="text-right font-semibold text-foreground text-center">
               Actions
@@ -96,18 +130,17 @@ export default function ServicesTable({ search, setSearch }: Props) {
         </TableHeader>
 
         <TableBody>
-          {filteredServices.length === 0 ? (
+          {sortedServices.length === 0 ? (
             <TableRow>
               <TableCell
-                colSpan={5}
+                colSpan={4}
                 className="text-center text-muted-foreground py-6"
               >
                 No services found.
               </TableCell>
             </TableRow>
           ) : (
-            filteredServices.map((service: ServicesData, index: number) => {
-              // Parse the size array safely for display
+            sortedServices.map((service: ServicesData, index: number) => {
               const sizes = Array.isArray(service.size)
                 ? service.size
                 : typeof service.size === "string"
@@ -120,8 +153,7 @@ export default function ServicesTable({ search, setSearch }: Props) {
                   className="hover:bg-muted/50 transition-colors group"
                 >
                   <TableCell className="text-xs text-muted-foreground font-medium text-center">
-                    {index + 1}{" "}
-                    {/* Changed to index + 1 so it doesn't start at 0 */}
+                    {index + 1}
                   </TableCell>
 
                   <TableCell className="font-medium text-foreground text-center">
@@ -129,13 +161,13 @@ export default function ServicesTable({ search, setSearch }: Props) {
                   </TableCell>
 
                   <TableCell className="text-muted-foreground text-center">
-                    <div className="flex items-center gap-2 justify-center capitalize">
+                    <div className="flex items-center gap-2 justify-center flex-wrap capitalize">
                       {sizes.map((ser: any, i: number) => (
                         <span
                           key={i}
                           className="bg-muted px-2 py-0.5 rounded-md text-xs"
                         >
-                          {ser.size}
+                          {ser.size}: ₱{ser.price}
                         </span>
                       ))}
                     </div>
@@ -153,7 +185,6 @@ export default function ServicesTable({ search, setSearch }: Props) {
                       <button
                         className="p-1.5 text-muted-foreground hover:text-destructive hover:bg-destructive/10 rounded-md transition-colors"
                         aria-label="Delete service"
-                        // Trigger the prompt and pass the specific service
                         onClick={() => handleDeletePrompt(service)}
                       >
                         <Trash2 size={16} />

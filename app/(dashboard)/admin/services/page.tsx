@@ -23,6 +23,12 @@ import { AddOnsPayload } from "@/types/AddOnsPayload";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import AddOnsViewDialog from "@/components/dashboard/add-ons/AddOnsViewDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function ServicesPageClient() {
   const queryClient = useQueryClient();
@@ -31,6 +37,9 @@ export default function ServicesPageClient() {
   const { data: add_ons, isLoading: add_onsIsLoading } = useAddOns();
   const [search, setSearch] = useState<string>("");
 
+  // Sorting state: 'name-asc' | 'name-desc' | 'price-asc' | 'price-desc'
+  const [sort, setSort] = useState<string>("name-asc");
+
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedAddOn, setSelectedAddOn] = useState<AddOnsData | null>(null);
 
@@ -38,23 +47,33 @@ export default function ServicesPageClient() {
     id: string,
     data: { label: string; price: number },
   ) => {
-    // TODO: Add your PUT/PATCH API call here
     await api.put(`/api/add-ons/${id}`, data);
     queryClient.invalidateQueries({ queryKey: ["add-ons"] });
   };
 
   const handleRemoveAddOn = async (id: string) => {
-    // TODO: Add your DELETE API call here
     await api.delete(`/api/add-ons/${id}`);
     queryClient.invalidateQueries({ queryKey: ["add-ons"] });
   };
 
   async function handleAddOnsSubmit(payload: AddOnsPayload) {
     await api.post("/api/add-ons", payload);
-
-    // ADDED AWAIT HERE
     await queryClient.invalidateQueries({ queryKey: ["add-ons"] });
   }
+
+  // Helper label for current sort selection
+  const getSortLabel = () => {
+    switch (sort) {
+      case "name-desc":
+        return "Name (Z-A)";
+      case "price-asc":
+        return "Price: Low to High";
+      case "price-desc":
+        return "Price: High to Low";
+      default:
+        return "Name (A-Z)";
+    }
+  };
 
   return (
     <div className="flex flex-col space-y-8 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
@@ -107,15 +126,36 @@ export default function ServicesPageClient() {
               />
             </div>
 
-            {/* Actions */}
+            {/* Actions & Sorting */}
             <div className="flex flex-row items-center gap-2 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
-              <Button
-                variant="outline"
-                className="flex-1 lg:flex-none bg-background border-border h-10 text-xs sm:text-sm whitespace-nowrap"
-              >
-                <ArrowUpDown className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
-                Sort
-              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant="outline"
+                    className="flex-1 lg:flex-none bg-background border-border h-10 text-xs sm:text-sm whitespace-nowrap"
+                  >
+                    <ArrowUpDown className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                    Sort:{" "}
+                    <span className="ml-1 font-normal text-muted-foreground">
+                      {getSortLabel()}
+                    </span>
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-48">
+                  <DropdownMenuItem onClick={() => setSort("name-asc")}>
+                    Name (A-Z)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort("name-desc")}>
+                    Name (Z-A)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort("price-asc")}>
+                    Price: Low to High
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setSort("price-desc")}>
+                    Price: High to Low
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
 
               <div className="flex-1 lg:flex-none min-w-fit">
                 <InclusionSheet
@@ -128,7 +168,11 @@ export default function ServicesPageClient() {
 
           {/* Services Table Container */}
           <div className="bg-card rounded-xl border border-border/60 shadow-xs overflow-hidden">
-            <ServicesTable search={search} setSearch={() => setSearch} />
+            <ServicesTable
+              search={search}
+              setSearch={() => setSearch}
+              sort={sort}
+            />
           </div>
         </section>
 
@@ -171,7 +215,8 @@ export default function ServicesPageClient() {
                 ))
               ) : (
                 <div className="col-span-full py-8 text-center text-sm text-muted-foreground border-2 border-dashed border-border rounded-xl">
-                  No add-ons available. Click "New Add-On" to create one.
+                  No add-ons available. Click &quot;New Add-On&quot; to create
+                  one.
                 </div>
               )}
             </div>
