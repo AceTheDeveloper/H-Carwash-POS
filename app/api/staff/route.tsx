@@ -32,17 +32,30 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { error } = await supabase.from("staffs").insert(body);
 
-    if (error) {
-      console.log("Error : ", error.message);
+    // Optional: Basic validation check
+    if (!body.name) {
       return NextResponse.json(
-        { message: "Internal Server Error" },
-        { status: 500 },
+        { message: "Staff name is required" },
+        { status: 400 },
       );
     }
 
-    return NextResponse.json({ message: "Data inserted" }, { status: 200 });
+    const { data, error } = await supabase
+      .from("staffs")
+      .insert([body])
+      .select()
+      .single();
+
+    if (error) {
+      console.log("Error : ", error.message);
+      return NextResponse.json({ message: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(
+      { message: "Data inserted", data },
+      { status: 200 },
+    );
   } catch (error) {
     console.log(
       "Error : ",

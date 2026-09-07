@@ -35,11 +35,11 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Flatten the nested joins into a clean shape for the frontend table
+    // Fixed: changed row.staff to row.staffs
     const recent = (data || []).map((row: any) => ({
       id: row.id,
       date: row.transaction?.vehicle_out ?? row.created_at,
-      staff_name: row.staff?.name ?? "Unknown",
+      staff_name: row.staffs?.name ?? "Unknown",
       service_name: row.transaction?.services?.service_name ?? "Unknown",
       amount: Number(row.commission_amount),
     }));

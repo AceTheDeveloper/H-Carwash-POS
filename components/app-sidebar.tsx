@@ -16,6 +16,7 @@ import {
   ReceiptIcon,
   TagsIcon,
   UsersIcon,
+  BarChart2,
   WrenchIcon,
 } from "lucide-react"; // Added new icons
 import * as React from "react";
@@ -60,6 +61,11 @@ const data = {
       title: "Transactions",
       url: "/admin/transactions",
       icon: <ReceiptIcon />,
+    },
+    {
+      title: "Reports",
+      url: "/admin/reports",
+      icon: <BarChart2 />,
     },
   ],
 };

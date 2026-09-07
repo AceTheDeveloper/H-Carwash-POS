@@ -129,7 +129,7 @@ export default function ServicesPageClient() {
             {/* Actions & Sorting */}
             <div className="flex flex-row items-center gap-2 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
               <DropdownMenu>
-                <DropdownMenuTrigger asChild>
+                <DropdownMenuTrigger>
                   <Button
                     variant="outline"
                     className="flex-1 lg:flex-none bg-background border-border h-10 text-xs sm:text-sm whitespace-nowrap"

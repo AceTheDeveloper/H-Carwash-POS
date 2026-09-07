@@ -24,6 +24,12 @@ import {
 } from "@/types/CommissionData";
 import StaffDialog from "@/components/dashboard/staff/StaffDialog";
 import StaffViewDialog from "@/components/dashboard/staff/StaffViewDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 export default function StaffCommissionPage() {
   const queryClient = useQueryClient();
@@ -34,6 +40,7 @@ export default function StaffCommissionPage() {
     useRecentCommissions(20);
 
   const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<string>("name-asc");
   const [isViewOpen, setIsViewOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffData | null>(null);
 
@@ -52,18 +59,41 @@ export default function StaffCommissionPage() {
     await queryClient.invalidateQueries({ queryKey: ["staff"] });
   };
 
-  const filteredStaff: StaffData[] =
-    staffList?.filter((staff: StaffData) =>
-      staff.name.toLowerCase().includes(search.toLowerCase()),
-    ) ?? [];
-
-  // Map staff_id -> total_earned for quick lookup while rendering staff cards
   const earningsByStaffId = new Map<string, number>(
     (commissionSummary || []).map((s: StaffCommissionSummary) => [
       s.staff_id,
       s.total_earned,
     ]),
   );
+
+  const filteredStaff: StaffData[] =
+    staffList?.filter((staff: StaffData) =>
+      staff.name.toLowerCase().includes(search.toLowerCase()),
+    ) ?? [];
+
+  const sortedStaff = [...filteredStaff].sort((a, b) => {
+    const earningsA = earningsByStaffId.get(a.id) ?? 0;
+    const earningsB = earningsByStaffId.get(b.id) ?? 0;
+
+    if (sort === "name-asc") return a.name.localeCompare(b.name);
+    if (sort === "name-desc") return b.name.localeCompare(a.name);
+    if (sort === "earnings-desc") return earningsB - earningsA;
+    if (sort === "earnings-asc") return earningsA - earningsB;
+    return 0;
+  });
+
+  const getSortLabel = () => {
+    switch (sort) {
+      case "name-desc":
+        return "Name (Z-A)";
+      case "earnings-desc":
+        return "Highest Earnings";
+      case "earnings-asc":
+        return "Lowest Earnings";
+      default:
+        return "Name (A-Z)";
+    }
+  };
 
   return (
     <div className="flex flex-col space-y-8 p-4 sm:p-6 md:p-8 w-full max-w-7xl mx-auto">
@@ -94,13 +124,34 @@ export default function StaffCommissionPage() {
             />
           </div>
           <div className="flex flex-row items-center gap-2 w-full lg:w-auto overflow-x-auto pb-1 lg:pb-0">
-            <Button
-              variant="outline"
-              className="flex-1 lg:flex-none bg-background border-border h-10 text-xs sm:text-sm whitespace-nowrap"
-            >
-              <ArrowUpDown className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
-              Sort
-            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger>
+                <Button
+                  variant="outline"
+                  className="flex-1 lg:flex-none bg-background border-border h-10 text-xs sm:text-sm whitespace-nowrap"
+                >
+                  <ArrowUpDown className="mr-2 h-3.5 w-3.5 sm:h-4 sm:w-4 text-muted-foreground" />
+                  Sort:{" "}
+                  <span className="ml-1 font-normal text-muted-foreground">
+                    {getSortLabel()}
+                  </span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48">
+                <DropdownMenuItem onClick={() => setSort("name-asc")}>
+                  Name (A-Z)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSort("name-desc")}>
+                  Name (Z-A)
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSort("earnings-desc")}>
+                  Highest Earnings
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setSort("earnings-asc")}>
+                  Lowest Earnings
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
@@ -120,8 +171,8 @@ export default function StaffCommissionPage() {
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {filteredStaff.length > 0 ? (
-                filteredStaff.map((staff) => {
+              {sortedStaff.length > 0 ? (
+                sortedStaff.map((staff) => {
                   const totalEarned = earningsByStaffId.get(staff.id) ?? 0;
                   return (
                     <div
@@ -165,7 +216,7 @@ export default function StaffCommissionPage() {
                 })
               ) : (
                 <div className="col-span-full py-12 text-center text-sm text-muted-foreground border-2 border-dashed border-border rounded-xl">
-                  No staff members found matching "{search}".
+                  No staff members found matching &quot;{search}&quot;.
                 </div>
               )}
             </div>
