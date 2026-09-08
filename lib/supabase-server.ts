@@ -7,7 +7,9 @@ export async function getSupabaseClient() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       async accessToken() {
-        return (await auth()).getToken();
+        const token = await (await auth()).getToken();
+        console.log("Clerk token (first 50 chars):", token?.slice(0, 50));
+        return token;
       },
     },
   );
