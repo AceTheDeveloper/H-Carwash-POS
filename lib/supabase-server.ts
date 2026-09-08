@@ -10,6 +10,10 @@ export async function getSupabaseClient() {
         const token = await (await auth()).getToken();
         return token;
       },
+      global: {
+        fetch: (...args: Parameters<typeof fetch>) =>
+          fetch(args[0], { ...args[1], cache: "no-store" }),
+      },
     },
   );
 }

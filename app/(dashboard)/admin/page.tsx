@@ -1,4 +1,4 @@
-import { supabase } from "@/lib/supabase";
+import { getSupabaseClient } from "@/lib/supabase-server";
 import KPICard from "@/components/dashboard/KPICard";
 import { RevenueBarChart } from "@/components/dashboard/RevenueBarChart";
 import { ServicesPieChart } from "@/components/dashboard/ServicesPieChart";
@@ -7,7 +7,11 @@ import { DollarSign, Landmark, Car } from "lucide-react";
 import DashboardRealtime from "@/components/dashboard/DashboardRealtime";
 import { getAppDate } from "@/lib/date";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 export default async function DashboardPage() {
+  const supabase = await getSupabaseClient();
   // 1. Fetch transactions with related service names from Supabase
   const { data: rawTransactions, error } = await supabase
     .from("transactions")
