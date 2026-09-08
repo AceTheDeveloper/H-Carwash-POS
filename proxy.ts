@@ -1,42 +1,84 @@
 import { clerkMiddleware } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+const ALLOWED_POS_ROLES = ["org:admin", "org:member"];
+
+const publicRoutes = ["/login", "/sign-in", "/sso-callback", "/unauthorized"];
+
+function isPath(pathname: string, route: string) {
+  return pathname === route || pathname.startsWith(`${route}/`);
+}
+
 export default clerkMiddleware(async (auth, req) => {
-  const { userId, orgRole, sessionStatus } = await auth();
+  const { userId, orgId, orgRole } = await auth();
   const { pathname } = req.nextUrl;
 
-  const isApiRoute =
-    pathname.startsWith("/api") || pathname.startsWith("/trpc");
-  const isPublicAsset = pathname.includes(".");
+  const url = new URL(req.url);
 
-  // 1. Skip middleware for API routes and static files
-  if (isApiRoute || isPublicAsset) {
-    return;
+  const isApiRoute = isPath(pathname, "/api") || isPath(pathname, "/trpc");
+
+  if (isApiRoute && !userId) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
   }
 
-  // 2. Unauthenticated check -> redirect to login
-  if (!userId || sessionStatus !== "active") {
-    // Prevent redirect loop if they are already on the login page
-    if (pathname !== "/login") {
-      return NextResponse.redirect(new URL("/login", req.url));
+  if (isPath(pathname, "/api/admin") && orgRole !== "org:admin") {
+    return NextResponse.json(
+      { message: "Forbidden: Admin access required" },
+      { status: 403 },
+    );
+  }
+
+  if (!isApiRoute && !userId && !publicRoutes.includes(pathname)) {
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (isApiRoute) {
+    return NextResponse.next();
+  }
+
+  const isPublicRoute = publicRoutes.includes(pathname);
+  if (!userId && !isPublicRoute) {
+    url.pathname = "/login";
+    return NextResponse.redirect(url);
+  }
+
+  if (isPublicRoute) {
+    return NextResponse.next();
+  }
+
+  if (!orgId) {
+    url.pathname = "/unauthorized";
+    return NextResponse.redirect(url);
+  }
+
+  if (pathname === "/dashboard") {
+    if (orgRole === "org:admin") {
+      url.pathname = "/admin";
+      return NextResponse.redirect(url);
+    } else if (orgRole === "org:member") {
+      url.pathname = "/pos";
+      return NextResponse.redirect(url);
+    } else {
+      url.pathname = "/unauthorized";
+      return NextResponse.redirect(url);
     }
-    return;
   }
 
-  // 3. Role-based routing with loop protection
-  // if (orgRole === "org:admin") {
-  //   // Only redirect if they are NOT already inside /admin
-  //   if (!pathname.startsWith("/admin")) {
-  //     return NextResponse.redirect(new URL("/admin", req.url));
-  //   }
-  // }
-
-  if (orgRole === "org:member") {
-    // Only redirect if they are NOT already inside /pos (fixed typo from "org:member]")
-    if (!pathname.startsWith("/pos")) {
-      return NextResponse.redirect(new URL("/pos", req.url));
-    }
+  if (isPath(pathname, "/admin") && orgRole !== "org:admin") {
+    url.pathname = "/unauthorized";
+    return NextResponse.redirect(url);
   }
+
+  if (
+    isPath(pathname, "/pos") &&
+    (!orgRole || !ALLOWED_POS_ROLES.includes(orgRole))
+  ) {
+    url.pathname = "/unauthorized";
+    return NextResponse.redirect(url);
+  }
+
+  return NextResponse.next();
 });
 
 export const config = {

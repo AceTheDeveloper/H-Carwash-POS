@@ -1,10 +1,49 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import handleOrderId from "../../helpers/handle_order_id";
+import { requireRole } from "../../helpers/requireRole";
+
+interface CheckoutAddOn {
+  id: string;
+  price: number;
+  seller_id?: string | null;
+}
+
+interface CheckoutBody {
+  customer_name: string;
+  contact_number?: string;
+  plate_number: string;
+  vehicle_classification: string;
+  vehicle_size: string;
+  service_id: string;
+  service_price: number;
+  add_ons?: CheckoutAddOn[];
+  promo?: unknown;
+  payment_method: string;
+  staff?: string[];
+  total_price: number;
+}
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
+    const authResult = await requireRole(["org:admin", "org:member"]);
+    if (authResult.error) return authResult.error;
+    const body = (await req.json()) as CheckoutBody;
+
+    if (
+      !body.customer_name?.trim() ||
+      !body.plate_number?.trim() ||
+      !body.service_id ||
+      !body.payment_method ||
+      !Array.isArray(body.staff) ||
+      body.staff.length === 0
+    ) {
+      return NextResponse.json(
+        { message: "Missing required checkout fields" },
+        { status: 400 },
+      );
+    }
+
     const order_id = await handleOrderId();
 
     // 1. Prepare data for the main transactions table
@@ -15,7 +54,7 @@ export async function POST(req: NextRequest) {
       plate_number: body.plate_number,
       vehicle_classification: body.vehicle_classification,
       vehicle_size: body.vehicle_size,
-      service_id: body.service, // Maps to selectedService.id
+      service_id: body.service_id,
       service_price: body.service_price, // Snapshot of the service price
       payment_method: body.payment_method,
       status: "pending",
@@ -44,15 +83,12 @@ export async function POST(req: NextRequest) {
     }
 
     // 2. Prepare and insert the add-ons (if any exist)
-    if (
-      body.add_ons &&
-      Array.isArray(body.add_ons) &&
-      body.add_ons.length > 0
-    ) {
-      const addOnsData = body.add_ons.map((addonId: string, index: number) => ({
+    if (Array.isArray(body.add_ons) && body.add_ons.length > 0) {
+      const addOnsData = body.add_ons.map((addon) => ({
         transaction_id: transaction.id,
-        add_on_id: addonId,
-        price: body.add_ons_price[index] || 0,
+        add_on_id: addon.id,
+        price: Number(addon.price) || 0,
+        seller_id: addon.seller_id || null,
       }));
 
       const { error: addOnsError } = await supabase
@@ -72,12 +108,8 @@ export async function POST(req: NextRequest) {
     }
 
     // 3. Prepare and insert the assigned staff (if any exist)
-    if (
-      body.staff_in_charge &&
-      Array.isArray(body.staff_in_charge) &&
-      body.staff_in_charge.length > 0
-    ) {
-      const staffData = body.staff_in_charge.map((staffId: string) => ({
+    if (Array.isArray(body.staff) && body.staff.length > 0) {
+      const staffData = body.staff.map((staffId) => ({
         transaction_id: transaction.id,
         staff_id: staffId,
         // commission_amount + commission_rate_used stay null until
@@ -105,10 +137,11 @@ export async function POST(req: NextRequest) {
       { message: "Transaction, add-ons, and staff inserted successfully" },
       { status: 201 },
     );
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
     console.error("API Error:", error);
     return NextResponse.json(
-      { message: "Internal Server Error", error: error.message },
+      { message: "Internal Server Error", error: message },
       { status: 500 },
     );
   }

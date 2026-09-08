@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../../helpers/requireRole";
 
 // 1. Swap the order! 'req' comes first, 'context' (with params) comes second.
 export async function PUT(
@@ -7,6 +8,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
     const { id } = await params;
     const body = await req.json();
 
@@ -38,6 +41,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
     const { id } = await params;
 
     const { error } = await supabase.from("services").delete().eq("id", id);

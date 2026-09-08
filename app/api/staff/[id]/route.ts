@@ -1,11 +1,14 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../../helpers/requireRole";
 
 export async function PUT(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
     const { id } = await params;
     const body = await req.json();
 
@@ -37,6 +40,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
     const { id } = await params;
 
     const { error } = await supabase.from("staffs").delete().eq("id", id);

@@ -3,19 +3,9 @@
 import frontpageImg from "@/assets/frontpage.jpg";
 import logoImg from "@/assets/h_final_logo.png";
 import { LoginForm } from "@/components/login-form";
-import { useAuth } from "@clerk/nextjs";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 
 export default function LoginPage() {
-  const router = useRouter();
-
-  const { isSignedIn } = useAuth();
-
-  if (isSignedIn) {
-    router.replace("/dashboard");
-  }
-
   return (
     <div className="grid min-h-svh lg:grid-cols-2">
       <div className="flex flex-col gap-4 p-6 md:p-10">

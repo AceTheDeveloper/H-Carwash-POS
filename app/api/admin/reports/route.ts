@@ -1,16 +1,11 @@
 import { supabase } from "@/lib/supabase";
-import { auth } from "@clerk/nextjs/server";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../../helpers/requireRole";
 
 export async function GET(req: NextRequest) {
   try {
-    const { orgRole } = await auth();
-    if (orgRole !== "org:admin") {
-      return NextResponse.json(
-        { message: "Unauthorized: Admin access required" },
-        { status: 403 },
-      );
-    }
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
 
     const { searchParams } = new URL(req.url);
     const startDate = searchParams.get("startDate"); // YYYY-MM-DD

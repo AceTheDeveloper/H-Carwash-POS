@@ -132,8 +132,10 @@ export default function Page() {
             <AddOnsStep
               addOns={addOnsList}
               selectedAddOns={form.selectedAddOns}
+              staffList={staffData} // ⬅️ Pass staff list here
               isSubmitting={form.isSubmitting}
               onToggle={form.toggleAddOn}
+              onUpdateSeller={form.updateAddOnSeller} // ⬅️ Ensure your useCheckoutForm hook implements this handler
             />
 
             {/* Replaced comment with actual Component */}

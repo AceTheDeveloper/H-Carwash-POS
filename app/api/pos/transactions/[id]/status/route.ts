@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../../../../helpers/requireRole";
 
 const COMMISSION_RATE = 0.25; // flat 25% for now
 
@@ -8,6 +9,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    const authResult = await requireRole(["org:admin", "org:member"]);
+    if (authResult.error) return authResult.error;
     const { id } = await params;
     const { status } = await req.json();
 

@@ -12,6 +12,7 @@ export type FormErrors = {
   plateNumber?: string;
   paymentMethod?: string;
   staff?: string;
+  service?: string;
 };
 
 export interface SizeOption {

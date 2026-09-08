@@ -1,12 +1,15 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../helpers/requireRole";
 
 export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireRole(["org:admin", "org:member"]);
+    if (authResult.error) return authResult.error;
     // 1. Get the status from the URL query params
     const statusParam = req.nextUrl.searchParams.get("status");
 
-    // 2. Start building the query WITHOUT the status filter yet
+    // 2. Start building the query WITHOUT the status filter yet~
     let query = supabase
       .from("transactions")
       .select("*, transaction_add_ons(*), services(*)")

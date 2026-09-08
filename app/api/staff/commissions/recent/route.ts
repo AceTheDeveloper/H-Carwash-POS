@@ -1,8 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../../../helpers/requireRole";
 
 export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
     const { searchParams } = new URL(req.url);
     const limit = Number(searchParams.get("limit")) || 20;
 

@@ -28,6 +28,7 @@ export interface AddOns {
 export interface AddOnItem {
   id: string;
   price: number; // Snapshot price at checkout
+  seller_id?: string | null; // ⬅️ Added: Who sold/recommended this add-on
 }
 
 export interface POSPayload {

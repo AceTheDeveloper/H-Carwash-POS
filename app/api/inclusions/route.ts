@@ -1,8 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
+import { requireRole } from "../helpers/requireRole";
 
 export async function GET(req: NextRequest) {
   try {
+    const authResult = await requireRole(["org:admin", "org:member"]);
+    if (authResult.error) return authResult.error;
     const { data, error } = await supabase
       .from("inclusions")
       .select("*")
@@ -21,6 +24,8 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireRole("org:admin");
+  if (authResult.error) return authResult.error;
   const body = await req.json();
 
   console.log("BODY : ", body);

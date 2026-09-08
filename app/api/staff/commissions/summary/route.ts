@@ -1,8 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { NextResponse } from "next/server";
+import { requireRole } from "../../../helpers/requireRole";
 
 export async function GET() {
   try {
+    const authResult = await requireRole("org:admin");
+    if (authResult.error) return authResult.error;
     // Get all staff first, so staff with zero commissions still show up (₱0)
     const { data: staffList, error: staffError } = await supabase
       .from("staffs")

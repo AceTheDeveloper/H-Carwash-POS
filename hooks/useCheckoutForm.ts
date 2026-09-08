@@ -1,191 +1,217 @@
-"use client";
-
-import { useState, useEffect } from "react";
 import { api } from "@/lib/api";
-import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
-import { PromoData } from "@/types/PromoData";
 import {
-  VehicleSpecification,
-  PaymentMethod,
   FormErrors,
+  PaymentMethod,
   SizeOption,
-  CheckoutPayload,
+  VehicleSpecification,
 } from "@/types/Checkout";
-import { StaffData } from "@/types/StaffData";
+import { PromoData } from "@/types/PromoData";
+import { ServicesData } from "@/types/ServicesData";
+import { useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
+
+export interface SelectedAddOnItem extends AddOnsData {
+  seller_id?: string | null; // Tracks who recommended/sold this add-on
+}
 
 export function useCheckoutForm() {
+  const queryClient = useQueryClient();
+
+  // Form Field States
+  const [customerName, setCustomerName] = useState("");
+  const [contactNumber, setContactNumber] = useState("");
+  const [plateNumber, setPlateNumber] = useState("");
   const [vehicleSpecification, setVehicleSpecification] =
     useState<VehicleSpecification>("4-wheels");
-  const [selectedService, setSelectedService] = useState<ServicesData | null>(
-    null,
-  );
   const [selectedSizeObj, setSelectedSizeObj] = useState<SizeOption | null>(
     null,
   );
-  const [selectedAddOns, setSelectedAddOns] = useState<AddOnsData[]>([]);
+  const [selectedService, setSelectedService] = useState<ServicesData | null>(
+    null,
+  );
+
+  // Add-Ons with Top-Up Seller support
+  const [selectedAddOns, setSelectedAddOns] = useState<SelectedAddOnItem[]>([]);
+
+  const [selectedPromo, setSelectedPromo] = useState<PromoData | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
   );
   const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
-  const [customerName, setCustomerName] = useState("");
-  const [plateNumber, setPlateNumber] = useState("");
-  const [contactNumber, setContactNumber] = useState("");
-  const [errors, setErrors] = useState<FormErrors>({});
-  const [selectedPromo, setSelectedPromo] = useState<PromoData | null>(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // Reset service selection when vehicle type changes
-  useEffect(() => {
-    setSelectedService(null);
-    setSelectedSizeObj(null);
-  }, [vehicleSpecification]);
-
-  const clearError = (field: keyof FormErrors) => {
-    setErrors((prev) => (prev[field] ? { ...prev, [field]: undefined } : prev));
-  };
-
-  const toggleService = (service: ServicesData) => {
-    setSelectedService((prev) => {
-      if (prev?.id === service.id) {
-        setSelectedSizeObj(null);
-        return null;
-      }
-      const sizes = (service.size as SizeOption[]) || [];
-      setSelectedSizeObj(sizes.length > 0 ? sizes[0] : null);
-      return service;
-    });
-  };
-
-  const toggleAddOn = (addon: AddOnsData) => {
-    setSelectedAddOns((prev) => {
-      const exists = prev.some((item) => item.id === addon.id);
-      return exists
-        ? prev.filter((item) => item.id !== addon.id)
-        : [...prev, addon];
-    });
-  };
-
-  const toggleStaffMember = (staffId: string) => {
-    setSelectedStaff((prev) => {
-      const exists = prev.includes(staffId);
-      return exists ? prev.filter((id) => id !== staffId) : [...prev, staffId];
-    });
-    clearError("staff");
-  };
+  const [errors, setErrors] = useState<FormErrors>({});
 
   const resetForm = () => {
     setCustomerName("");
-    setPlateNumber("");
     setContactNumber("");
-    setSelectedService(null);
+    setPlateNumber("");
+    setVehicleSpecification("4-wheels");
     setSelectedSizeObj(null);
+    setSelectedService(null);
     setSelectedAddOns([]);
+    setSelectedPromo(null);
     setPaymentMethod(null);
     setSelectedStaff([]);
     setErrors({});
-    setSelectedPromo(null);
-    setVehicleSpecification("4-wheels");
   };
 
-  const servicePrice = selectedSizeObj ? Number(selectedSizeObj.price) || 0 : 0;
-  const addOnsTotalPrice = selectedAddOns.reduce(
-    (sum, item) => sum + (Number(item.price) || 0),
-    0,
-  );
-
-  let totalPrice = servicePrice + addOnsTotalPrice;
-
-  if (selectedPromo) {
-    totalPrice =
-      selectedPromo.discount_type === "fixed_amount"
-        ? totalPrice - selectedPromo.value
-        : totalPrice - totalPrice * (selectedPromo.value / 100);
-
-    // Prevent the total price from dropping below 0
-    totalPrice = Math.max(0, totalPrice);
-  }
-
-  const validate = (): FormErrors => {
-    const newErrors: FormErrors = {};
-    if (!customerName.trim()) newErrors.customerName = "Name is required";
-    if (!contactNumber.trim()) newErrors.contactNumber = "Phone is required";
-    if (!plateNumber.trim()) newErrors.plateNumber = "Plate number is required";
-    if (!paymentMethod) newErrors.paymentMethod = "Select payment method";
-    if (selectedStaff.length === 0)
-      newErrors.staff = "Assign at least one staff member";
-    return newErrors;
+  // Error management helpers
+  const clearError = (field: keyof FormErrors) => {
+    setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
-  const onSubmit = async () => {
-    const newErrors = validate();
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      return;
+  // Toggle a service and reset size if vehicle type changes
+  const toggleService = (service: ServicesData) => {
+    if (selectedService?.id === service.id) {
+      setSelectedService(null);
+      setSelectedSizeObj(null);
+    } else {
+      setSelectedService(service);
+      setSelectedSizeObj(null); // Reset size when service changes
     }
-    if (!selectedService || !selectedSizeObj || !paymentMethod) return;
+  };
 
-    const payload: CheckoutPayload = {
-      customer_name: customerName,
-      contact_number: contactNumber,
-      plate_number: plateNumber,
-      vehicle_classification: vehicleSpecification,
-      vehicle_size: selectedSizeObj.size,
-      service: selectedService.id,
-      service_price: servicePrice,
-      add_ons: selectedAddOns.map((addon) => addon.id),
-      add_ons_price: selectedAddOns.map((addon) =>
-        addon.price ? Number(addon.price) : 0,
+  // Toggle add-ons (adds with null seller_id initially)
+  const toggleAddOn = (addon: AddOnsData) => {
+    setSelectedAddOns((prev) => {
+      const exists = prev.find((item) => item.id === addon.id);
+      if (exists) {
+        return prev.filter((item) => item.id !== addon.id);
+      } else {
+        return [...prev, { ...addon, seller_id: null }];
+      }
+    });
+  };
+
+  // Update the top-up seller for a specific add-on
+  const updateAddOnSeller = (addonId: string, sellerId: string) => {
+    setSelectedAddOns((prev) =>
+      prev.map((item) =>
+        item.id === addonId ? { ...item, seller_id: sellerId || null } : item,
       ),
-      payment_method: paymentMethod,
-      staff_in_charge: selectedStaff,
-      total_price: totalPrice,
-      promo: selectedPromo,
-    };
+    );
+  };
+
+  // Toggle staff assignment
+  const toggleStaffMember = (staffId: string) => {
+    setSelectedStaff((prev) =>
+      prev.includes(staffId)
+        ? prev.filter((id) => id !== staffId)
+        : [...prev, staffId],
+    );
+    clearError("staff");
+  };
+
+  // Calculate base service price based on selected size option
+  const servicePrice = useMemo(() => {
+    if (!selectedSizeObj) return 0;
+    return Number(selectedSizeObj.price) || 0;
+  }, [selectedSizeObj]);
+
+  // Calculate total price including add-ons and discounts from promo
+  const totalPrice = useMemo(() => {
+    const addonsTotal = selectedAddOns.reduce(
+      (sum, item) => sum + Number(item.price),
+      0,
+    );
+    let subtotal = servicePrice + addonsTotal;
+
+    if (selectedPromo) {
+      if (selectedPromo.discount_type === "percentage") {
+        const discount = subtotal * (Number(selectedPromo.value) / 100);
+        subtotal -= discount;
+      } else {
+        subtotal -= Number(selectedPromo.value);
+      }
+    }
+
+    return Math.max(0, subtotal);
+  }, [servicePrice, selectedAddOns, selectedPromo]);
+
+  // Validation before submission
+  const validateForm = () => {
+    const newErrors: FormErrors = {};
+    if (!customerName.trim())
+      newErrors.customerName = "Customer name is required";
+    if (!plateNumber.trim()) newErrors.plateNumber = "Plate number is required";
+    if (!selectedService) newErrors.service = "Please select a service";
+    if (!paymentMethod)
+      newErrors.paymentMethod = "Please select a payment method";
+    if (selectedStaff.length === 0)
+      newErrors.staff = "Please assign at least one staff member";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Submit Handler
+  const onSubmit = async () => {
+    if (!validateForm()) return;
 
     setIsSubmitting(true);
     try {
+      const payload = {
+        customer_name: customerName,
+        contact_number: contactNumber,
+        plate_number: plateNumber,
+        vehicle_classification:
+          vehicleSpecification === "4-wheels" ? "4 Wheels" : "2 Wheels",
+        vehicle_size: selectedSizeObj?.size || "regular",
+        service_id: selectedService?.id,
+        service_price: servicePrice,
+        add_ons: selectedAddOns.map((addon) => ({
+          id: addon.id,
+          price: addon.price,
+          seller_id: addon.seller_id || null, // ⬅️ Sent to backend database successfully
+        })),
+        promo: selectedPromo,
+        payment_method: paymentMethod,
+        staff: selectedStaff,
+        total_price: totalPrice,
+      };
+
       await api.post("/api/pos/checkout", payload);
+      await queryClient.invalidateQueries({ queryKey: ["transactions"] });
       resetForm();
     } catch (error) {
-      console.error("Error submitting checkout:", error);
+      console.error("Failed to submit transaction:", error);
     } finally {
       setIsSubmitting(false);
     }
   };
 
   return {
-    // state
+    // States
+    customerName,
+    contactNumber,
+    plateNumber,
     vehicleSpecification,
-    selectedService,
     selectedSizeObj,
+    selectedService,
     selectedAddOns,
+    selectedPromo,
     paymentMethod,
     selectedStaff,
-    customerName,
-    plateNumber,
-    contactNumber,
-    errors,
     isSubmitting,
+    errors,
     servicePrice,
-    addOnsTotalPrice,
-    selectedPromo,
     totalPrice,
-    // setters
+
+    // Setters & Actions
+    setCustomerName,
+    setContactNumber,
+    setPlateNumber,
     setVehicleSpecification,
     setSelectedSizeObj,
-    setPaymentMethod,
-    setCustomerName,
-    setPlateNumber,
-    setContactNumber,
     setSelectedPromo,
-    // handlers
+    setPaymentMethod,
     toggleService,
     toggleAddOn,
+    updateAddOnSeller, // ⬅️ Returned for use in AddOnsStep
     toggleStaffMember,
     clearError,
     onSubmit,
   };
 }
-
-export type CheckoutFormState = ReturnType<typeof useCheckoutForm>;
