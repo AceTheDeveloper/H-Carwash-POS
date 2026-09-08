@@ -90,7 +90,7 @@ export default function PromosPageClient() {
             ) : (
               <div className="col-span-full py-8 text-center text-sm text-muted-foreground border-2 border-dashed border-border rounded-xl">
                 <Tag className="w-8 h-8 mx-auto mb-2 text-muted-foreground/40" />
-                No promos yet. Click "New Promo" to create one.
+                No promos yet. Click &quot;New Promo&quot; to create one.
               </div>
             )}
           </div>

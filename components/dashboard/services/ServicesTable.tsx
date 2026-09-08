@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/table";
 import { Edit, Trash2 } from "lucide-react";
 import { ServicesData } from "@/types/ServicesData";
+import { ServiceSizes } from "@/types/ServicesPayload";
 import useServices from "@/hooks/useServices";
 import ServicesEditDialog from "@/components/dashboard/services/ServicesEditDialog";
 import { useState } from "react";
@@ -85,11 +86,11 @@ export default function ServicesTable({
     const sizes = Array.isArray(service.size)
       ? service.size
       : typeof service.size === "string"
-        ? JSON.parse(service.size)
-        : [];
+        ? (JSON.parse(service.size) as ServiceSizes[])
+        : ([] as ServiceSizes[]);
     if (sizes.length === 0) return 0;
     // Return the lowest price among sizes or fallback to 0
-    return Math.min(...sizes.map((s: any) => Number(s.price) || 0));
+    return Math.min(...sizes.map((size) => Number(size.price) || 0));
   };
 
   // 3. Sort filtered services based on selected dropdown value
@@ -162,7 +163,7 @@ export default function ServicesTable({
 
                   <TableCell className="text-muted-foreground text-center">
                     <div className="flex items-center gap-2 justify-center flex-wrap capitalize">
-                      {sizes.map((ser: any, i: number) => (
+                      {sizes.map((ser: ServiceSizes, i: number) => (
                         <span
                           key={i}
                           className="bg-muted px-2 py-0.5 rounded-md text-xs"

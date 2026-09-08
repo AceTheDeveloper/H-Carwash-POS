@@ -24,7 +24,7 @@ export async function PATCH(
       return NextResponse.json({ message: "Invalid status" }, { status: 400 });
     }
 
-    const updateData: Record<string, any> = { status };
+    const updateData: Record<string, unknown> = { status };
 
     if (status === "completed") {
       updateData.vehicle_out = new Date().toISOString();
@@ -91,10 +91,11 @@ export async function PATCH(
     }
 
     return NextResponse.json({ data: transaction }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("API Error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Internal Server Error", error: error.message },
+      { message: "Internal Server Error", error: message },
       { status: 500 },
     );
   }

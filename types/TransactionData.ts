@@ -8,6 +8,13 @@ export interface TransactionAddOn {
   add_on_id: string; // varchar
   price: number; // bigint maps to number in JS
   created_at: string; // timestamptz string
+  label?: string;
+  seller_id?: string | null;
+}
+
+export interface TransactionStaff {
+  staff_id: string;
+  name: string;
 }
 
 // Main Transaction Type
@@ -29,6 +36,7 @@ export interface TransactionData {
   vehicle_out: string | null;
   promo: PromoData;
   transaction_add_ons?: TransactionAddOn[];
+  transaction_staff?: TransactionStaff[];
 
   // Add the joined service object here:
   services?: ServicesData | null;

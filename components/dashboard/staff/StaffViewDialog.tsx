@@ -34,7 +34,9 @@ export default function StaffViewDialog({
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    if (staff) setName(staff.name);
+    if (staff) {
+      queueMicrotask(() => setName(staff.name));
+    }
   }, [staff]);
 
   if (!staff) return null;

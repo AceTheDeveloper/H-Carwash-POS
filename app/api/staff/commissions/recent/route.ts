@@ -2,6 +2,17 @@ import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "../../../helpers/requireRole";
 
+interface RecentCommissionRow {
+  id: string;
+  commission_amount: number | null;
+  created_at: string;
+  staffs?: { name?: string } | { name?: string }[] | null;
+  transaction?: {
+    vehicle_out?: string | null;
+    services?: { service_name?: string } | { service_name?: string }[] | null;
+  } | null;
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authResult = await requireRole("org:admin");
@@ -39,19 +50,26 @@ export async function GET(req: NextRequest) {
     }
 
     // Fixed: changed row.staff to row.staffs
-    const recent = (data || []).map((row: any) => ({
-      id: row.id,
-      date: row.transaction?.vehicle_out ?? row.created_at,
-      staff_name: row.staffs?.name ?? "Unknown",
-      service_name: row.transaction?.services?.service_name ?? "Unknown",
-      amount: Number(row.commission_amount),
-    }));
+    const recent = ((data as RecentCommissionRow[] | null) || []).map(
+      (row) => ({
+        id: row.id,
+        date: row.transaction?.vehicle_out ?? row.created_at,
+        staff_name: Array.isArray(row.staffs)
+          ? (row.staffs[0]?.name ?? "Unknown")
+          : (row.staffs?.name ?? "Unknown"),
+        service_name: Array.isArray(row.transaction?.services)
+          ? (row.transaction?.services[0]?.service_name ?? "Unknown")
+          : (row.transaction?.services?.service_name ?? "Unknown"),
+        amount: Number(row.commission_amount),
+      }),
+    );
 
     return NextResponse.json({ data: recent }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("API Error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Internal Server Error", error: error.message },
+      { message: "Internal Server Error", error: message },
       { status: 500 },
     );
   }

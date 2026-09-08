@@ -2,6 +2,24 @@ import { supabase } from "@/lib/supabase";
 import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "../../helpers/requireRole";
 
+interface ReportAggregateTransaction {
+  id: string;
+  total_price: number | null;
+  status: string | null;
+  vehicle_in: string | null;
+  payment_method: string | null;
+  services?: { service_name?: string } | { service_name?: string }[] | null;
+  transaction_add_ons?: {
+    add_on_id: string;
+    price: number | null;
+    seller_id?: string | null;
+  }[];
+  transaction_staff?: {
+    commission_amount: number | null;
+    staffs?: { name?: string } | { name?: string }[] | null;
+  }[];
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authResult = await requireRole("org:admin");
@@ -15,8 +33,11 @@ export async function GET(req: NextRequest) {
     const paymentMethod = searchParams.get("paymentMethod");
     const staffId = searchParams.get("staffId");
     const search = searchParams.get("search") || "";
-    const page = Number(searchParams.get("page")) || 1;
-    const pageSize = Number(searchParams.get("pageSize")) || 15;
+    const page = Math.max(Number(searchParams.get("page")) || 1, 1);
+    const pageSize = Math.min(
+      Math.max(Number(searchParams.get("pageSize")) || 15, 1),
+      100,
+    );
     const exportCsv = searchParams.get("export") === "true";
 
     // 1. Timezone conversion (Asia/Manila UTC+8)
@@ -33,11 +54,23 @@ export async function GET(req: NextRequest) {
     }
 
     // Fetch master add_ons for label lookup to avoid PGRST200 relationship errors
-    const { data: addOnsMaster } = await supabase
-      .from("add_ons")
-      .select("id, label");
+    const [{ data: addOnsMaster }, { data: staffTxRows }] = await Promise.all([
+      supabase.from("add_ons").select("id, label"),
+      staffId && staffId !== "all"
+        ? supabase
+            .from("transaction_staff")
+            .select("transaction_id")
+            .eq("staff_id", staffId)
+        : Promise.resolve({ data: null }),
+    ]);
     const addOnMapLookup = new Map(
-      (addOnsMaster || []).map((ao: any) => [ao.id, ao.label]),
+      (addOnsMaster || []).map((ao: { id: string; label: string }) => [
+        ao.id,
+        ao.label,
+      ]),
+    );
+    const staffTransactionIds = (staffTxRows || []).map(
+      (row: { transaction_id: string }) => row.transaction_id,
     );
 
     // 2. Base query builder for transactions
@@ -61,7 +94,8 @@ export async function GET(req: NextRequest) {
         transaction_add_ons (
           id,
           add_on_id,
-          price
+          price,
+          seller_id
         ),
         transaction_staff (
           id,
@@ -91,23 +125,23 @@ export async function GET(req: NextRequest) {
     }
 
     if (staffId && staffId !== "all") {
-      const { data: staffTxRows } = await supabase
-        .from("transaction_staff")
-        .select("transaction_id")
-        .eq("staff_id", staffId);
-      const txIds = (staffTxRows || []).map((r) => r.transaction_id);
-      query = query.in("id", txIds.length > 0 ? txIds : ["none"]);
+      query = query.in(
+        "id",
+        staffTransactionIds.length > 0 ? staffTransactionIds : ["none"],
+      );
     }
 
-    let transactionData: any[] = [];
+    let transactionData: Record<string, unknown>[] = [];
     let totalCount = 0;
 
     if (exportCsv) {
-      const { data, error } = await query.order("vehicle_in", {
-        ascending: false,
-      });
+      const { data, error } = await query
+        .order("vehicle_in", {
+          ascending: false,
+        })
+        .limit(5000);
       if (error) throw error;
-      transactionData = data || [];
+      transactionData = (data || []) as Record<string, unknown>[];
     } else {
       const from = (page - 1) * pageSize;
       const to = from + pageSize - 1;
@@ -116,11 +150,11 @@ export async function GET(req: NextRequest) {
         .range(from, to);
 
       if (error) throw error;
-      transactionData = data || [];
+      transactionData = (data || []) as Record<string, unknown>[];
       totalCount = count || 0;
     }
 
-    // 3. Fetch dataset for KPI calculations & Charts matching filters
+    // 3. Fetch the aggregate input with only the fields needed for KPIs/charts.
     let kpiQuery = supabase.from("transactions").select(`
         id,
         total_price,
@@ -129,7 +163,7 @@ export async function GET(req: NextRequest) {
         payment_method,
         service_id,
         services ( service_name ),
-        transaction_add_ons ( add_on_id, price ),
+        transaction_add_ons ( add_on_id, price, seller_id ),
         transaction_staff ( commission_amount, staffs ( name ) )
       `);
 
@@ -146,20 +180,19 @@ export async function GET(req: NextRequest) {
       );
     }
     if (staffId && staffId !== "all") {
-      const { data: staffTxRows } = await supabase
-        .from("transaction_staff")
-        .select("transaction_id")
-        .eq("staff_id", staffId);
-      const txIds = (staffTxRows || []).map((r) => r.transaction_id);
-      kpiQuery = kpiQuery.in("id", txIds.length > 0 ? txIds : ["none"]);
+      kpiQuery = kpiQuery.in(
+        "id",
+        staffTransactionIds.length > 0 ? staffTransactionIds : ["none"],
+      );
     }
 
-    const { data: allFilteredTx, error: kpiError } = await kpiQuery;
+    const { data: rawFilteredTx, error: kpiError } = await kpiQuery;
     if (kpiError) throw kpiError;
+    const allFilteredTx = (rawFilteredTx || []) as ReportAggregateTransaction[];
 
     // 4. Compute KPIs
     let totalRevenue = 0;
-    let transactionCount = allFilteredTx.length;
+    const transactionCount = allFilteredTx.length;
     let completedCount = 0;
     let cancelledCount = 0;
     let pendingInProgressCount = 0;
@@ -170,6 +203,31 @@ export async function GET(req: NextRequest) {
     const paymentMethodMap: Record<string, number> = {};
     const addOnMap: Record<string, { count: number; revenue: number }> = {};
     const staffCommissionMap: Record<string, number> = {};
+    const topUpSellerMap: Record<
+      string,
+      { name: string; count: number; revenue: number }
+    > = {};
+
+    const sellerIds = Array.from(
+      new Set(
+        allFilteredTx.flatMap((tx) =>
+          Array.isArray(tx.transaction_add_ons)
+            ? tx.transaction_add_ons
+                .map((addOn) => addOn.seller_id)
+                .filter(Boolean)
+            : [],
+        ),
+      ),
+    );
+    const { data: sellers } = sellerIds.length
+      ? await supabase.from("staffs").select("id, name").in("id", sellerIds)
+      : { data: [] };
+    const sellerNameLookup = new Map(
+      (sellers || []).map((seller: { id: string; name: string }) => [
+        seller.id,
+        seller.name,
+      ]),
+    );
 
     for (const tx of allFilteredTx) {
       const st = (tx.status || "").toLowerCase();
@@ -186,8 +244,10 @@ export async function GET(req: NextRequest) {
             (revenueByDayMap[manilaDate] || 0) + (Number(tx.total_price) || 0);
         }
 
-        const servName =
-          (tx.services as any)?.service_name || "Unknown Service";
+        const serviceRelation = Array.isArray(tx.services)
+          ? tx.services[0]
+          : tx.services;
+        const servName = serviceRelation?.service_name || "Unknown Service";
         revenueByServiceMap[servName] =
           (revenueByServiceMap[servName] || 0) + (Number(tx.total_price) || 0);
       } else if (st === "cancelled") {
@@ -206,6 +266,20 @@ export async function GET(req: NextRequest) {
           if (!addOnMap[aoLabel]) addOnMap[aoLabel] = { count: 0, revenue: 0 };
           addOnMap[aoLabel].count += 1;
           addOnMap[aoLabel].revenue += aoPrice;
+
+          if (ao.seller_id) {
+            const sellerName =
+              sellerNameLookup.get(ao.seller_id) || "Unknown Seller";
+            if (!topUpSellerMap[ao.seller_id]) {
+              topUpSellerMap[ao.seller_id] = {
+                name: sellerName,
+                count: 0,
+                revenue: 0,
+              };
+            }
+            topUpSellerMap[ao.seller_id].count += 1;
+            topUpSellerMap[ao.seller_id].revenue += aoPrice;
+          }
         }
       }
 
@@ -213,7 +287,10 @@ export async function GET(req: NextRequest) {
         for (const ts of tx.transaction_staff) {
           const comm = Number(ts.commission_amount) || 0;
           totalCommissions += comm;
-          const sName = (ts.staffs as any)?.name || "Staff";
+          const staffRelation = Array.isArray(ts.staffs)
+            ? ts.staffs[0]
+            : ts.staffs;
+          const sName = staffRelation?.name || "Staff";
           staffCommissionMap[sName] = (staffCommissionMap[sName] || 0) + comm;
         }
       }
@@ -254,6 +331,8 @@ export async function GET(req: NextRequest) {
       }),
     );
 
+    const topUpSellerSummary = Object.values(topUpSellerMap);
+
     if (exportCsv) {
       return NextResponse.json({
         data: transactionData,
@@ -278,6 +357,7 @@ export async function GET(req: NextRequest) {
           paymentMethodBreakdown,
           addOnPerformance,
           staffCommissionSummary,
+          topUpSellerSummary,
         },
         transactions: transactionData,
         pagination: {
@@ -289,10 +369,11 @@ export async function GET(req: NextRequest) {
       },
       { status: 200 },
     );
-  } catch (error: any) {
+  } catch (error) {
     console.error("Reports API Error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Internal Server Error", error: error.message },
+      { message: "Internal Server Error", error: message },
       { status: 500 },
     );
   }

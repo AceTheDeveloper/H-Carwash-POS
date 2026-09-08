@@ -4,31 +4,34 @@ import { RevenueBarChart } from "@/components/dashboard/RevenueBarChart";
 import { ServicesPieChart } from "@/components/dashboard/ServicesPieChart";
 import { LiveQueueTable } from "@/components/dashboard/LiveQueueTable";
 import { DollarSign, Landmark, Car } from "lucide-react";
+import DashboardRealtime from "@/components/dashboard/DashboardRealtime";
+import { getAppDate } from "@/lib/date";
 
 export default async function DashboardPage() {
   // 1. Fetch transactions with related service names from Supabase
   const { data: rawTransactions, error } = await supabase
     .from("transactions")
-    .select("*, services(service_name)")
-    .order("vehicle_in", { ascending: false });
+    .select(
+      "id, order_id, plate_number, vehicle_classification, vehicle_size, total_price, payment_method, status, vehicle_in, vehicle_out, services(service_name)",
+    )
+    .order("vehicle_in", { ascending: false })
+    .limit(1000);
 
   if (error) {
     console.error("Error fetching dashboard data:", error.message);
   }
 
   const transactions = rawTransactions || [];
+  const getServiceName = (transaction: (typeof transactions)[number]) =>
+    transaction.services?.[0]?.service_name;
 
   // 2. Get today's date in Philippine Standard Time (YYYY-MM-DD)
-  const todayStr = new Date().toLocaleDateString("en-CA", {
-    timeZone: "Asia/Manila",
-  });
+  const todayStr = getAppDate();
 
   // 3. Filter Today's Transactions
   const todaysTransactions = transactions.filter((txn) => {
     if (!txn.vehicle_in) return false;
-    const txnDate = new Date(txn.vehicle_in).toLocaleDateString("en-CA", {
-      timeZone: "Asia/Manila",
-    });
+    const txnDate = getAppDate(txn.vehicle_in);
     return txnDate === todayStr;
   });
 
@@ -88,34 +91,29 @@ export default async function DashboardPage() {
   for (let i = 6; i >= 0; i--) {
     const d = new Date();
     d.setDate(d.getDate() - i);
-    const dayName = d.toLocaleDateString("en-US", {
-      weekday: "short",
-      timeZone: "Asia/Manila",
-    });
-    daysMap[dayName] = 0;
+    daysMap[getAppDate(d)] = 0;
   }
 
   transactions.forEach((txn) => {
     if (!txn.vehicle_in) return;
-    const d = new Date(txn.vehicle_in);
-    const dayName = d.toLocaleDateString("en-US", {
-      weekday: "short",
-      timeZone: "Asia/Manila",
-    });
-    if (daysMap[dayName] !== undefined) {
-      daysMap[dayName] += txn.total_price || 0;
+    const day = getAppDate(txn.vehicle_in);
+    if (daysMap[day] !== undefined) {
+      daysMap[day] += txn.total_price || 0;
     }
   });
 
-  const revenueChartData = Object.keys(daysMap).map((day) => ({
-    day,
-    revenue: daysMap[day],
+  const revenueChartData = Object.keys(daysMap).map((date) => ({
+    day: new Date(`${date}T00:00:00`).toLocaleDateString("en-US", {
+      weekday: "short",
+      timeZone: "UTC",
+    }),
+    revenue: daysMap[date],
   }));
 
   // 6. Prepare Popular Services Pie Chart Data
   const serviceCounts: { [key: string]: number } = {};
   transactions.forEach((txn) => {
-    const name = txn.services?.service_name || "Other Services";
+    const name = getServiceName(txn) || "Other Services";
     serviceCounts[name] = (serviceCounts[name] || 0) + 1;
   });
 
@@ -151,7 +149,7 @@ export default async function DashboardPage() {
       id: txn.order_id || txn.id,
       plateNo: txn.plate_number || "NO-PLATE",
       vehicle: `${txn.vehicle_classification || "Vehicle"} (${txn.vehicle_size || "Standard"})`,
-      service: txn.services?.service_name || "Standard Service",
+      service: getServiceName(txn) || "Standard Service",
       total: `₱${(txn.total_price || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
       timeIn: timeInFormatted,
       status: txn.status === "in_progress" ? "Washing" : "Queued",
@@ -160,6 +158,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <DashboardRealtime />
       {/* Greetings Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>

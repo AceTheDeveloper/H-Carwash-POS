@@ -31,25 +31,42 @@ import {
 import {
   Search,
   Download,
-  Filter,
   Calendar as CalendarIcon,
   CheckCircle2,
   XCircle,
   Clock,
-  ChevronLeft,
-  ChevronRight,
   Loader2,
   FileText,
   FileSpreadsheet,
   FileIcon,
 } from "lucide-react";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+
+interface ReportAddOn {
+  seller_id?: string | null;
+}
+
+interface ReportTransaction {
+  id: string;
+  order_id?: string;
+  vehicle_in?: string | null;
+  customer_name?: string | null;
+  plate_number?: string | null;
+  payment_method?: string | null;
+  total_price?: number | null;
+  status?: string | null;
+  services?: { service_name?: string } | { service_name?: string }[] | null;
+  transaction_add_ons?: ReportAddOn[];
+}
+
+interface ChartPoint {
+  date?: string;
+  service?: string;
+  method?: string;
+  name?: string;
+  revenue?: number;
+  count?: number;
+  commission?: number;
+}
 
 const COLORS = [
   "#2563eb",
@@ -117,12 +134,41 @@ export default function AdminReportsPage() {
   const { data: services } = useServices();
   const { data: staffList } = useStaff();
 
+  const getServiceName = (transaction: ReportTransaction) => {
+    const relation = Array.isArray(transaction.services)
+      ? transaction.services[0]
+      : transaction.services;
+    return relation?.service_name || "-";
+  };
+
+  const getSellerNames = (transaction: ReportTransaction) => {
+    const sellerIds = (transaction.transaction_add_ons || [])
+      .map((addOn: { seller_id?: string | null }) => addOn.seller_id)
+      .filter((sellerId): sellerId is string => Boolean(sellerId));
+
+    return sellerIds
+      .map(
+        (sellerId: string) =>
+          staffList?.find((staff: { id: string }) => staff.id === sellerId)
+            ?.name || "Unknown Seller",
+      )
+      .filter(
+        (name: string, index: number, names: string[]) =>
+          names.indexOf(name) === index,
+      )
+      .join(", ");
+  };
+
   // Refs for capturing the DOM for PDF
   const kpiRef = useRef<HTMLDivElement>(null);
   const chartsRef = useRef<HTMLDivElement>(null);
 
   const handlePresetChange = (preset: string) => {
     setDatePreset(preset);
+    if (preset === "custom") {
+      setCalendarOpen(true);
+      return;
+    }
     if (preset !== "custom") {
       const range = getPresetDates(preset);
       setStartDate(range.startDate);
@@ -180,7 +226,7 @@ export default function AdminReportsPage() {
         export: "true",
       });
       const res = await api.get(`/api/admin/reports?${params.toString()}`);
-      const txs = res.data.data || [];
+      const txs: ReportTransaction[] = res.data.data || [];
 
       if (txs.length === 0) {
         alert("No records to export for the selected filters.");
@@ -194,30 +240,32 @@ export default function AdminReportsPage() {
         "Customer",
         "Plate #",
         "Service",
+        "Top-Up Seller",
         "Payment",
         "Total (PHP)",
         "Status",
       ];
 
-      const rows = txs.map((t: any) => [
-        t.order_id,
+      const rows: string[][] = (txs as ReportTransaction[]).map((t) => [
+        t.order_id || "",
         t.vehicle_in
           ? new Date(t.vehicle_in).toLocaleString("en-PH", {
               timeZone: "Asia/Manila",
             })
           : "",
         t.customer_name || "Guest",
-        t.plate_number,
-        t.services?.service_name || "-",
-        t.payment_method,
+        t.plate_number || "",
+        getServiceName(t),
+        getSellerNames(t),
+        t.payment_method || "",
         Number(t.total_price || 0).toFixed(2),
-        t.status,
+        t.status || "",
       ]);
 
       const fileName = `Car_Wash_Report_${startDate}_to_${endDate}`;
 
       if (format === "csv") {
-        const csvRows = txs.map((t: any) => [
+        const csvRows = (txs as ReportTransaction[]).map((t) => [
           t.order_id,
           t.vehicle_in
             ? new Date(t.vehicle_in).toLocaleString("en-PH", {
@@ -226,7 +274,8 @@ export default function AdminReportsPage() {
             : "",
           `"${(t.customer_name || "Guest").replace(/"/g, '""')}"`,
           t.plate_number,
-          `"${(t.services?.service_name || "-").replace(/"/g, '""')}"`,
+          `"${getServiceName(t).replace(/"/g, '""')}"`,
+          `"${getSellerNames(t).replace(/"/g, '""')}"`,
           t.payment_method,
           t.total_price,
           t.status,
@@ -234,9 +283,7 @@ export default function AdminReportsPage() {
 
         const csvContent =
           "data:text/csv;charset=utf-8," +
-          [headers.join(","), ...csvRows.map((e: any[]) => e.join(","))].join(
-            "\n",
-          );
+          [headers.join(","), ...csvRows.map((e) => e.join(","))].join("\n");
         const encodedUri = encodeURI(csvContent);
         const link = document.createElement("a");
         link.setAttribute("href", encodedUri);
@@ -296,10 +343,8 @@ export default function AdminReportsPage() {
           currentY += pdfHeight + 15;
         }
 
-        // Capture Charts (New Page)
+        // Keep the summary and chart snapshots on the first page.
         if (chartsRef.current) {
-          doc.addPage();
-          currentY = 20;
           doc.setFontSize(14);
           doc.setTextColor(0);
           doc.text("Analytics & Trends", 14, currentY);
@@ -312,12 +357,17 @@ export default function AdminReportsPage() {
           });
           const imgProps = doc.getImageProperties(imgData);
           const pdfWidth = pageWidth - 28;
-          const pdfHeight = (imgProps.height * pdfWidth) / imgProps.width;
+          const maxHeight = 125;
+          const pdfHeight = Math.min(
+            (imgProps.height * pdfWidth) / imgProps.width,
+            maxHeight,
+          );
 
           doc.addImage(imgData, "PNG", 14, currentY, pdfWidth, pdfHeight);
+          currentY += pdfHeight + 10;
         }
 
-        // Transactions Table (New Page)
+        // Keep the detailed table on the second page.
         doc.addPage();
         doc.setFontSize(14);
         doc.setTextColor(0);
@@ -537,6 +587,74 @@ export default function AdminReportsPage() {
             </div>
           </div>
         </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <select
+            aria-label="Filter by status"
+            value={status}
+            onChange={(event) => {
+              setStatus(event.target.value);
+              setPage(1);
+            }}
+            className={selectClass}
+          >
+            <option value="all">All statuses</option>
+            <option value="completed">Completed</option>
+            <option value="pending">Pending</option>
+            <option value="in_progress">In progress</option>
+            <option value="cancelled">Cancelled</option>
+          </select>
+
+          <select
+            aria-label="Filter by service"
+            value={serviceId}
+            onChange={(event) => {
+              setServiceId(event.target.value);
+              setPage(1);
+            }}
+            className={selectClass}
+          >
+            <option value="all">All services</option>
+            {(services || []).map(
+              (service: { id: string; service_name: string }) => (
+                <option key={service.id} value={service.id}>
+                  {service.service_name}
+                </option>
+              ),
+            )}
+          </select>
+
+          <select
+            aria-label="Filter by payment method"
+            value={paymentMethod}
+            onChange={(event) => {
+              setPaymentMethod(event.target.value);
+              setPage(1);
+            }}
+            className={selectClass}
+          >
+            <option value="all">All payment methods</option>
+            <option value="cash">Cash</option>
+            <option value="qr">QR</option>
+          </select>
+
+          <select
+            aria-label="Filter by staff member"
+            value={staffId}
+            onChange={(event) => {
+              setStaffId(event.target.value);
+              setPage(1);
+            }}
+            className={selectClass}
+          >
+            <option value="all">All staff</option>
+            {(staffList || []).map((staff: { id: string; name: string }) => (
+              <option key={staff.id} value={staff.id}>
+                {staff.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {isLoading ? (
@@ -667,7 +785,7 @@ export default function AdminReportsPage() {
                       tick={{ fontSize: 11 }}
                     />
                     <Tooltip
-                      formatter={(value: any) => [
+                      formatter={(value: unknown) => [
                         `₱${Number(value).toLocaleString()}`,
                         "Revenue",
                       ]}
@@ -711,7 +829,7 @@ export default function AdminReportsPage() {
                       tick={{ fontSize: 11 }}
                     />
                     <Tooltip
-                      formatter={(value: any) => [
+                      formatter={(value: unknown) => [
                         `₱${Number(value).toLocaleString()}`,
                         "Revenue",
                       ]}
@@ -745,7 +863,7 @@ export default function AdminReportsPage() {
                       isAnimationActive={false}
                     >
                       {(charts.paymentMethodBreakdown || []).map(
-                        (entry: any, index: number) => (
+                        (entry: ChartPoint, index: number) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={COLORS[index % COLORS.length]}
@@ -785,7 +903,7 @@ export default function AdminReportsPage() {
                       tick={{ fontSize: 11 }}
                     />
                     <Tooltip
-                      formatter={(value: any) => [
+                      formatter={(value: unknown) => [
                         `₱${Number(value).toLocaleString()}`,
                         "Commission",
                       ]}
@@ -798,6 +916,43 @@ export default function AdminReportsPage() {
                     />
                   </BarChart>
                 </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Top-up Seller Performance */}
+            <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xs space-y-4">
+              <h3 className="font-semibold text-foreground text-base">
+                Top-Up Seller Performance
+              </h3>
+              <div className="space-y-3">
+                {(charts.topUpSellerSummary || []).length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No top-up seller activity for this period.
+                  </p>
+                ) : (
+                  (charts.topUpSellerSummary || []).map(
+                    (seller: {
+                      name: string;
+                      count: number;
+                      revenue: number;
+                    }) => (
+                      <div
+                        key={seller.name}
+                        className="flex items-center justify-between border-b border-border/50 pb-2 last:border-0"
+                      >
+                        <span className="font-medium text-foreground">
+                          {seller.name}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {seller.count} add-ons / ₱
+                          {seller.revenue.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </span>
+                      </div>
+                    ),
+                  )
+                )}
               </div>
             </div>
           </div>
@@ -817,12 +972,13 @@ export default function AdminReportsPage() {
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Customer</th>
                     <th className="px-4 py-3">Service</th>
+                    <th className="px-4 py-3">Top-Up Seller</th>
                     <th className="px-4 py-3">Total (₱)</th>
                     <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {transactions.map((t: any) => (
+                  {transactions.map((t: ReportTransaction) => (
                     <tr
                       key={t.id}
                       className="hover:bg-muted/20 transition-colors"
@@ -838,9 +994,8 @@ export default function AdminReportsPage() {
                       <td className="px-4 py-3 font-medium">
                         {t.customer_name}
                       </td>
-                      <td className="px-4 py-3">
-                        {t.services?.service_name || "-"}
-                      </td>
+                      <td className="px-4 py-3">{getServiceName(t)}</td>
+                      <td className="px-4 py-3">{getSellerNames(t) || "-"}</td>
                       <td className="px-4 py-3 font-semibold">
                         ₱{Number(t.total_price || 0).toFixed(2)}
                       </td>

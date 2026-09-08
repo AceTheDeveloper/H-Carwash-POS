@@ -49,8 +49,10 @@ export default function AddOnsViewDialog({
   // Sync the dialog state with the selected add-on when it opens
   useEffect(() => {
     if (addOn && isOpen) {
-      setLabel(addOn.label);
-      setPrice(addOn.price.toString());
+      queueMicrotask(() => {
+        setLabel(addOn.label);
+        setPrice(addOn.price.toString());
+      });
     }
   }, [addOn, isOpen]);
 

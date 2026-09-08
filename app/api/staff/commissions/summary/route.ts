@@ -53,10 +53,11 @@ export async function GET() {
     }));
 
     return NextResponse.json({ data: summary }, { status: 200 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("API Error:", error);
+    const message = error instanceof Error ? error.message : "Unknown error";
     return NextResponse.json(
-      { message: "Internal Server Error", error: error.message },
+      { message: "Internal Server Error", error: message },
       { status: 500 },
     );
   }

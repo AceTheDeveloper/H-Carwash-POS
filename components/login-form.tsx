@@ -78,7 +78,7 @@ export function LoginForm({
           },
         });
       }
-    } catch (err: any) {
+    } catch {
       setError("root", {
         type: "manual",
         message: "Something went wrong. Please try again.",
@@ -98,8 +98,8 @@ export function LoginForm({
         redirectUrl: "/dashboard",
       });
       // Browser navigates away to Google here — no further code runs
-    } catch (err: any) {
-      console.error("Google sign-in error:", err);
+    } catch {
+      console.error("Google sign-in error");
       setError("root", {
         type: "manual",
         message: "Failed to initialize Google login. Please try again.",
@@ -198,7 +198,7 @@ export function LoginForm({
             type="submit"
             className="rounded-md"
             md-disabled={isLoading}
-            disabled={isLoading}
+            disabled={isLoading || isGoogleLoading}
           >
             {isLoading ? (
               <>
@@ -220,7 +220,7 @@ export function LoginForm({
             variant="outline"
             type="button"
             className="rounded-md"
-            disabled={isLoading}
+            disabled={isLoading || isGoogleLoading}
             onClick={handleGoogleSignIn}
           >
             <Image
@@ -229,7 +229,7 @@ export function LoginForm({
               src={googleIcon}
               className="size-4 mr-2"
             />
-            Login with Google
+            {isGoogleLoading ? "Connecting..." : "Login with Google"}
           </Button>
         </Field>
       </FieldGroup>

@@ -22,9 +22,18 @@ import {
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  queueList: any[];
+  queueList: QueueItem[];
   isLoading: boolean;
   onStatusChanged: () => void; // callback to refetch transactions after update
+}
+
+interface QueueItem {
+  id: string;
+  customer_name?: string | null;
+  plate_number?: string | null;
+  status: string;
+  vehicle_in?: string | null;
+  total_price?: number | null;
 }
 
 export default function QueueSheet({

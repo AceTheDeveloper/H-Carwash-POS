@@ -40,18 +40,6 @@ export default function PromoDialog({
   const [value, setValue] = useState("");
   const [isActive, setIsActive] = useState(true);
 
-  useEffect(() => {
-    if (open && selectedPromo) {
-      setName(selectedPromo.name);
-      setDescription(selectedPromo.description || "");
-      setDiscountType(selectedPromo.discount_type);
-      setValue(selectedPromo.value.toString());
-      setIsActive(selectedPromo.is_active);
-    } else if (open && !selectedPromo) {
-      resetForm();
-    }
-  }, [open, selectedPromo]);
-
   const resetForm = () => {
     setName("");
     setDescription("");
@@ -59,6 +47,20 @@ export default function PromoDialog({
     setValue("");
     setIsActive(true);
   };
+
+  useEffect(() => {
+    if (open && selectedPromo) {
+      queueMicrotask(() => {
+        setName(selectedPromo.name);
+        setDescription(selectedPromo.description || "");
+        setDiscountType(selectedPromo.discount_type);
+        setValue(selectedPromo.value.toString());
+        setIsActive(selectedPromo.is_active);
+      });
+    } else if (open && !selectedPromo) {
+      queueMicrotask(resetForm);
+    }
+  }, [open, selectedPromo]);
 
   const handleSubmit = async () => {
     if (!name.trim() || !value) return;
