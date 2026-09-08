@@ -28,18 +28,18 @@ export default function VehicleTypeStep({
         onValueChange={(val) => onChange(val as VehicleSpecification)}
         className="w-full"
       >
-        <TabsList className="w-full grid grid-cols-2 h-12 p-1 bg-muted/50 rounded-xl">
+        <TabsList className="grid h-12 w-full grid-cols-2 rounded-xl border border-border/70 bg-muted/40 p-1">
           <TabsTrigger
             value="4-wheels"
             disabled={isSubmitting}
-            className="rounded-lg font-semibold border border-transparent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary-dark data-[state=active]:shadow-sm"
+            className="rounded-lg border border-transparent font-semibold text-muted-foreground transition-colors data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
           >
             4 Wheels
           </TabsTrigger>
           <TabsTrigger
             value="2-wheels"
             disabled={isSubmitting}
-            className="rounded-lg font-semibold border border-transparent data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:border-primary-dark data-[state=active]:shadow-sm"
+            className="rounded-lg border border-transparent font-semibold text-muted-foreground transition-colors data-[state=active]:border-primary/30 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
           >
             2 Wheels
           </TabsTrigger>

@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useClerk } from "@clerk/nextjs";
+import { LogOut, ShieldCheck } from "lucide-react";
 import useServices from "@/hooks/useServices";
 import useAddOns from "@/hooks/useAddOns";
 import useTransactions from "@/hooks/useTransactions";
@@ -9,7 +11,6 @@ import { useCheckoutForm } from "@/hooks/useCheckoutForm";
 import { ServicesData } from "@/types/ServicesData";
 import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "@/types/PromoData"; // <-- Added
-import { StaffData } from "@/types/StaffData";
 
 import CustomerInfoForm from "@/components/pos/checkout/CustomerInfoForm";
 import VehicleTypeStep from "@/components/pos/checkout/VehicleTypeStep";
@@ -23,8 +24,10 @@ import QueueSheet from "@/components/pos/checkout/QueueSheet";
 import { useQueryClient } from "@tanstack/react-query";
 import { useTransactionsRealtime } from "@/hooks/useTransactionsRealtime";
 import useStaff from "@/hooks/useStaff";
+import { Button } from "@/components/ui/button";
 
 export default function Page() {
+  const { signOut } = useClerk();
   const { data: services, isLoading: isServicesLoading } = useServices();
   const { data: addOnsData, isLoading: isAddOnsLoading } = useAddOns();
   const { data: transactionsData, isLoading: isTransactionsLoading } =
@@ -70,30 +73,58 @@ export default function Page() {
   const canSubmit = !!form.selectedService && !!form.selectedSizeObj;
 
   return (
-    <div className="min-h-screen bg-muted/30 p-4 md:p-6 font-sans">
-      <main className="max-w-[1450px] mx-auto">
-        <div className="flex flex-col lg:flex-row gap-6">
-          <section className="flex-1 flex flex-col gap-8 pb-10">
-            <div className="pb-2 border-b border-border/50 flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                  New Transaction
-                </h1>
-                <p className="text-sm text-muted-foreground mt-1">
-                  Fill out each step below to create an order.
-                </p>
-              </div>
-              <QueueSheet
-                open={isQueueOpen}
-                onOpenChange={setIsQueueOpen}
-                queueList={queueList}
-                isLoading={isTransactionsLoading}
-                onStatusChanged={() =>
-                  queryClient.invalidateQueries({ queryKey: ["transactions"] })
-                }
-              />
+    <div className="min-h-screen bg-muted/30 font-sans">
+      <header className="sticky top-0 z-30 border-b border-border/70 bg-background/95 backdrop-blur">
+        <div className="mx-auto flex max-w-[1450px] items-center justify-between gap-4 px-4 py-3 sm:px-6">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+              <ShieldCheck className="size-5" />
             </div>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-bold tracking-tight text-foreground sm:text-base">
+                H Carwash POS
+              </p>
+              <p className="truncate text-xs text-muted-foreground">
+                New transaction workspace
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <QueueSheet
+              open={isQueueOpen}
+              onOpenChange={setIsQueueOpen}
+              queueList={queueList}
+              isLoading={isTransactionsLoading}
+              onStatusChanged={() =>
+                queryClient.invalidateQueries({ queryKey: ["transactions"] })
+              }
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Log out"
+              title="Log out"
+              onClick={() => signOut({ redirectUrl: "/login" })}
+            >
+              <LogOut className="size-4" />
+            </Button>
+          </div>
+        </div>
+      </header>
 
+      <main className="mx-auto max-w-[1450px] px-4 py-5 sm:px-6 sm:py-8">
+        <div className="mb-6 flex flex-col gap-1">
+          <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+            New Transaction
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            Build an order step by step, then send it to the live queue.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
+          <section className="flex min-w-0 flex-1 flex-col gap-6 pb-8">
             <CustomerInfoForm
               customerName={form.customerName}
               contactNumber={form.contactNumber}
@@ -164,8 +195,8 @@ export default function Page() {
             />
           </section>
 
-          <section className="w-full lg:w-[380px] xl:w-[420px] shrink-0 order-first lg:order-last mb-6 lg:mb-0">
-            <div className="lg:sticky lg:top-6">
+          <section className="order-first mb-2 w-full shrink-0 lg:order-last lg:w-[380px] xl:w-[420px] lg:mb-0">
+            <div className="lg:sticky lg:top-[5.5rem]">
               <OrderSummary
                 selectedService={form.selectedService}
                 selectedSizeSize={form.selectedSizeObj?.size}
