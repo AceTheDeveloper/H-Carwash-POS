@@ -1,10 +1,14 @@
 // app/transactions/page.tsx
-import { supabase } from "@/lib/supabase";
 import TransactionsClient from "@/components/dashboard/transactions/TransactionClient";
-import { TransactionAddOn, TransactionData } from "@/types/TransactionData";
 import { getAppDate } from "@/lib/date";
+import { getSupabaseClient } from "@/lib/supabase-server";
+import { TransactionAddOn, TransactionData } from "@/types/TransactionData";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function TransactionsPage() {
+  const supabase = await getSupabaseClient();
   const [
     { data: rawTransactions, error },
     { data: addOns },
