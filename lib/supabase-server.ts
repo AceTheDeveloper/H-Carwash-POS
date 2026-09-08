@@ -8,7 +8,6 @@ export async function getSupabaseClient() {
     {
       async accessToken() {
         const token = await (await auth()).getToken();
-        console.log("Clerk token (first 50 chars):", token?.slice(0, 50));
         return token;
       },
     },
