@@ -27,7 +27,7 @@ export default function PaymentMethodStep({
         </h2>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 pt-2">
+      <div className="grid grid-cols-3 gap-3 pt-2">
         <button
           type="button"
           disabled={isSubmitting}
@@ -53,6 +53,19 @@ export default function PaymentMethodStep({
         >
           <QrCode className="w-4 h-4" />
           QR Code
+        </button>
+        <button
+          type="button"
+          disabled={isSubmitting}
+          onClick={() => onChange("card")}
+          className={`flex items-center justify-center gap-2 py-3.5 px-4 rounded-xl border-2 text-sm font-semibold transition-all ${
+            value === "card"
+              ? "border-primary bg-primary/10 text-primary"
+              : "border-border/60 bg-background text-muted-foreground hover:border-primary/40"
+          }`}
+        >
+          <CreditCard className="w-4 h-4" />
+          Card
         </button>
       </div>
       {error && <p className="text-xs text-red-500">{error}</p>}

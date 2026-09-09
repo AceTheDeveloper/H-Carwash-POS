@@ -21,6 +21,7 @@ export interface TransactionStaff {
 export interface TransactionData {
   id: string;
   order_id: string;
+  car_brand?: string | null;
   customer_name: string;
   contact_number: string;
   plate_number: string;

@@ -13,6 +13,7 @@ interface CheckoutBody {
   customer_name: string;
   contact_number?: string;
   plate_number: string;
+  car_brand: string;
   vehicle_classification: string;
   vehicle_size: string;
   service_id: string;
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
       customer_name: body.customer_name,
       contact_number: body.contact_number,
       plate_number: body.plate_number,
+      car_brand: body.car_brand,
       vehicle_classification: body.vehicle_classification,
       vehicle_size: body.vehicle_size,
       service_id: body.service_id,

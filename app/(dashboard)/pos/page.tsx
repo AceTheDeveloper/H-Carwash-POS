@@ -98,6 +98,9 @@ export default function Page() {
               onStatusChanged={() =>
                 queryClient.invalidateQueries({ queryKey: ["transactions"] })
               }
+              drafts={form.drafts}
+              onResumeDraft={form.loadDraft}
+              onDiscardDraft={form.deleteDraft}
             />
             <Button
               type="button"
@@ -129,6 +132,7 @@ export default function Page() {
               customerName={form.customerName}
               contactNumber={form.contactNumber}
               plateNumber={form.plateNumber}
+              carBrand={form.carBrand}
               errors={form.errors}
               isSubmitting={form.isSubmitting}
               onChangeName={(v) => {
@@ -142,6 +146,10 @@ export default function Page() {
               onChangePlate={(v) => {
                 form.setPlateNumber(v);
                 form.clearError("plateNumber");
+              }}
+              onCarBrandChange={(v) => {
+                form.setCarBrand(v);
+                form.clearError("carBrand");
               }}
             />
 
@@ -198,6 +206,8 @@ export default function Page() {
           <section className="order-first mb-2 w-full shrink-0 lg:order-last lg:w-[380px] xl:w-[420px] lg:mb-0">
             <div className="lg:sticky lg:top-[5.5rem]">
               <OrderSummary
+                onSaveDraft={form.onSaveDraft}
+                isSavingDraft={form.isSavingDraft}
                 selectedService={form.selectedService}
                 selectedSizeSize={form.selectedSizeObj?.size}
                 vehicleSpecification={form.vehicleSpecification}

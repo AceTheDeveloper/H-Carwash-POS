@@ -2,29 +2,33 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Phone, Hash } from "lucide-react";
+import { User, Phone, Hash, Car } from "lucide-react";
 import { FormErrors } from "@/types/Checkout";
 
 interface Props {
   customerName: string;
   contactNumber: string;
   plateNumber: string;
+  carBrand: string;
   errors: FormErrors;
   isSubmitting: boolean;
   onChangeName: (v: string) => void;
   onChangeContact: (v: string) => void;
   onChangePlate: (v: string) => void;
+  onCarBrandChange: (v: string) => void;
 }
 
 export default function CustomerInfoForm({
   customerName,
   contactNumber,
   plateNumber,
+  carBrand,
   errors,
   isSubmitting,
   onChangeName,
   onChangeContact,
   onChangePlate,
+  onCarBrandChange,
 }: Props) {
   return (
     <div className="space-y-4 bg-card p-5 rounded-2xl border border-border/60 shadow-sm">
@@ -37,7 +41,7 @@ export default function CustomerInfoForm({
         </h2>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 pt-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">
         <div className="space-y-2 relative">
           <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
             Name
@@ -99,6 +103,27 @@ export default function CustomerInfoForm({
           </div>
           {errors.plateNumber && (
             <p className="text-xs text-red-500 mt-1">{errors.plateNumber}</p>
+          )}
+        </div>
+
+        <div className="space-y-2 relative">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Car Brand
+          </Label>
+          <div className="relative">
+            <Car className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+            <Input
+              placeholder="Toyota, Honda, etc."
+              value={carBrand}
+              disabled={isSubmitting}
+              onChange={(e) => onCarBrandChange(e.target.value)}
+              className={`pl-9 h-11 bg-background ${
+                errors.carBrand ? "border-red-500" : ""
+              }`}
+            />
+          </div>
+          {errors.carBrand && (
+            <p className="text-xs text-red-500 mt-1">{errors.carBrand}</p>
           )}
         </div>
       </div>

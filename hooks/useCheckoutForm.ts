@@ -1,4 +1,3 @@
-import { api } from "@/lib/api";
 import { AddOnsData } from "@/types/AddOnsData";
 import {
   FormErrors,
@@ -8,11 +7,52 @@ import {
 } from "@/types/Checkout";
 import { PromoData } from "@/types/PromoData";
 import { ServicesData } from "@/types/ServicesData";
+import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export interface SelectedAddOnItem extends AddOnsData {
   seller_id?: string | null; // Tracks who recommended/sold this add-on
+}
+
+const DRAFT_KEY = "pos-checkout-drafts"; // stores an array of drafts
+
+// Shape of what actually gets persisted to localStorage
+export interface DraftShape {
+  id: string;
+  customerName: string;
+  contactNumber: string;
+  plateNumber: string;
+  carBrand: string;
+  vehicleSpecification: VehicleSpecification;
+  selectedSizeObj: SizeOption | null;
+  selectedService: ServicesData | null;
+  selectedAddOns: SelectedAddOnItem[];
+  selectedPromo: PromoData | null;
+  paymentMethod: PaymentMethod | null;
+  selectedStaff: string[];
+  totalPrice: number;
+  savedAt: string;
+}
+
+// Raw read/write helpers — these touch localStorage directly.
+// Everything else in the hook should go through the `drafts` state instead,
+// so the UI always has a fresh copy without re-reading localStorage on every render.
+function readDraftsFromStorage(): DraftShape[] {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeDraftsToStorage(drafts: DraftShape[]) {
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
+  } catch (error) {
+    console.error("Failed to write drafts to localStorage:", error);
+  }
 }
 
 export function useCheckoutForm() {
@@ -22,6 +62,7 @@ export function useCheckoutForm() {
   const [customerName, setCustomerName] = useState("");
   const [contactNumber, setContactNumber] = useState("");
   const [plateNumber, setPlateNumber] = useState("");
+  const [carBrand, setCarBrand] = useState("");
   const [vehicleSpecification, setVehicleSpecification] =
     useState<VehicleSpecification>("4-wheels");
   const [selectedSizeObj, setSelectedSizeObj] = useState<SizeOption | null>(
@@ -41,12 +82,36 @@ export function useCheckoutForm() {
   const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
+
+  // Live list of drafts, mirrored from localStorage. This is what the UI (Drafts tab) reads.
+  const [drafts, setDrafts] = useState<DraftShape[]>([]);
+  // Tracks which draft (if any) the current form session originated from,
+  // so re-saving updates that entry instead of creating a duplicate.
+  const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
+
+  // Load drafts from localStorage on mount (client-side only)
+  useEffect(() => {
+    setDrafts(readDraftsFromStorage());
+  }, []);
+
+  // Keep drafts in sync across browser tabs/windows (optional but nice for a POS with multiple terminals)
+  useEffect(() => {
+    const handleStorageEvent = (e: StorageEvent) => {
+      if (e.key === DRAFT_KEY) {
+        setDrafts(readDraftsFromStorage());
+      }
+    };
+    window.addEventListener("storage", handleStorageEvent);
+    return () => window.removeEventListener("storage", handleStorageEvent);
+  }, []);
 
   const resetForm = () => {
     setCustomerName("");
     setContactNumber("");
     setPlateNumber("");
+    setCarBrand("");
     setVehicleSpecification("4-wheels");
     setSelectedSizeObj(null);
     setSelectedService(null);
@@ -54,6 +119,7 @@ export function useCheckoutForm() {
     setSelectedPromo(null);
     setPaymentMethod(null);
     setSelectedStaff([]);
+    setCurrentDraftId(null);
     setErrors({});
   };
 
@@ -130,7 +196,10 @@ export function useCheckoutForm() {
     return Math.max(0, subtotal);
   }, [servicePrice, selectedAddOns, selectedPromo]);
 
-  // Validation before submission
+  // Whether there's anything worth saving as a draft
+  const canSaveDraft = !!selectedService || selectedAddOns.length > 0;
+
+  // Validation before final submission
   const validateForm = () => {
     const newErrors: FormErrors = {};
     if (!customerName.trim())
@@ -146,6 +215,77 @@ export function useCheckoutForm() {
     return Object.keys(newErrors).length === 0;
   };
 
+  // Save (or update) the current form as a draft. Multiple drafts can exist
+  // at once — one per car currently being washed without payment yet.
+  const onSaveDraft = async () => {
+    if (!canSaveDraft || isSavingDraft) return;
+
+    setIsSavingDraft(true);
+    try {
+      const id = currentDraftId ?? crypto.randomUUID();
+      const draft: DraftShape = {
+        id,
+        customerName,
+        contactNumber,
+        plateNumber,
+        carBrand,
+        vehicleSpecification,
+        selectedSizeObj,
+        selectedService,
+        selectedAddOns,
+        selectedPromo,
+        paymentMethod,
+        selectedStaff,
+        totalPrice,
+        savedAt: new Date().toISOString(),
+      };
+
+      const current = readDraftsFromStorage();
+      const existingIndex = current.findIndex((d) => d.id === id);
+      const updated =
+        existingIndex >= 0
+          ? current.map((d, i) => (i === existingIndex ? draft : d))
+          : [...current, draft];
+
+      writeDraftsToStorage(updated);
+      setDrafts(updated);
+      setCurrentDraftId(id);
+      resetForm(); // clears the form after saving — see note below
+    } catch (error) {
+      console.error("Failed to save draft:", error);
+    } finally {
+      setIsSavingDraft(false);
+    }
+  };
+
+  // Load a specific draft by id into the form (used by "Resume" in the Drafts tab)
+  const loadDraft = (id: string) => {
+    const draft = drafts.find((d) => d.id === id);
+    if (!draft) return;
+
+    setCustomerName(draft.customerName ?? "");
+    setContactNumber(draft.contactNumber ?? "");
+    setPlateNumber(draft.plateNumber ?? "");
+    setCarBrand(draft.carBrand ?? "");
+    setVehicleSpecification(draft.vehicleSpecification ?? "4-wheels");
+    setSelectedSizeObj(draft.selectedSizeObj ?? null);
+    setSelectedService(draft.selectedService ?? null);
+    setSelectedAddOns(draft.selectedAddOns ?? []);
+    setSelectedPromo(draft.selectedPromo ?? null);
+    setPaymentMethod(draft.paymentMethod ?? null);
+    setSelectedStaff(draft.selectedStaff ?? []);
+    setCurrentDraftId(draft.id);
+    setErrors({});
+  };
+
+  // Remove one draft (used by "Discard" in the Drafts tab, and after successful checkout)
+  const deleteDraft = (id: string) => {
+    const updated = readDraftsFromStorage().filter((d) => d.id !== id);
+    writeDraftsToStorage(updated);
+    setDrafts(updated);
+    if (currentDraftId === id) setCurrentDraftId(null);
+  };
+
   // Submit Handler
   const onSubmit = async () => {
     if (!validateForm()) return;
@@ -156,6 +296,7 @@ export function useCheckoutForm() {
         customer_name: customerName,
         contact_number: contactNumber,
         plate_number: plateNumber,
+        car_brand: carBrand,
         vehicle_classification:
           vehicleSpecification === "4-wheels" ? "4 Wheels" : "2 Wheels",
         vehicle_size: selectedSizeObj?.size || "regular",
@@ -164,7 +305,7 @@ export function useCheckoutForm() {
         add_ons: selectedAddOns.map((addon) => ({
           id: addon.id,
           price: addon.price,
-          seller_id: addon.seller_id || null, // ⬅️ Sent to backend database successfully
+          seller_id: addon.seller_id || null,
         })),
         promo: selectedPromo,
         payment_method: paymentMethod,
@@ -174,6 +315,9 @@ export function useCheckoutForm() {
 
       await api.post("/api/pos/checkout", payload);
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
+
+      // A completed, paid transaction shouldn't leave a stale unpaid draft behind
+      if (currentDraftId) deleteDraft(currentDraftId);
       resetForm();
     } catch (error) {
       console.error("Failed to submit transaction:", error);
@@ -187,6 +331,7 @@ export function useCheckoutForm() {
     customerName,
     contactNumber,
     plateNumber,
+    carBrand,
     vehicleSpecification,
     selectedSizeObj,
     selectedService,
@@ -195,6 +340,10 @@ export function useCheckoutForm() {
     paymentMethod,
     selectedStaff,
     isSubmitting,
+    isSavingDraft,
+    canSaveDraft,
+    currentDraftId,
+    drafts,
     errors,
     servicePrice,
     totalPrice,
@@ -203,15 +352,20 @@ export function useCheckoutForm() {
     setCustomerName,
     setContactNumber,
     setPlateNumber,
+    setCarBrand,
     setVehicleSpecification,
     setSelectedSizeObj,
     setSelectedPromo,
     setPaymentMethod,
     toggleService,
     toggleAddOn,
-    updateAddOnSeller, // ⬅️ Returned for use in AddOnsStep
+    updateAddOnSeller,
     toggleStaffMember,
     clearError,
     onSubmit,
+    onSaveDraft,
+    loadDraft,
+    deleteDraft,
+    resetForm,
   };
 }

@@ -6,6 +6,7 @@ import {
   Loader2,
   QrCode,
   Receipt,
+  Save,
   Settings2,
   Tag,
 } from "lucide-react";
@@ -32,7 +33,19 @@ interface Props {
   selectedPromo: PromoData | null;
   canSubmit: boolean;
   onSubmit: () => void;
+  onSaveDraft?: () => void;
+  isSavingDraft?: boolean;
 }
+
+// Central lookup for payment method icon + label — add new methods here only
+const PAYMENT_METHOD_DISPLAY: Record<
+  PaymentMethod,
+  { label: string; icon: typeof Banknote }
+> = {
+  cash: { label: "Cash", icon: Banknote },
+  qr: { label: "QR Code", icon: QrCode },
+  card: { label: "Card", icon: CreditCard },
+};
 
 export default function OrderSummary({
   selectedService,
@@ -48,7 +61,20 @@ export default function OrderSummary({
   isSubmitting,
   canSubmit,
   onSubmit,
+  onSaveDraft,
+  isSavingDraft,
 }: Props) {
+  // Draft only needs *something* selected, not full checkout validity
+  const canSaveDraft =
+    (!!selectedService || selectedAddOns.length > 0) &&
+    !isSubmitting &&
+    !isSavingDraft;
+
+  const paymentDisplay = paymentMethod
+    ? PAYMENT_METHOD_DISPLAY[paymentMethod]
+    : null;
+  const PaymentIcon = paymentDisplay?.icon;
+
   return (
     <div className="flex-1 bg-card border border-border/60 rounded-2xl shadow-sm flex flex-col overflow-hidden">
       <div className="bg-muted/30 p-5 border-b border-border/50">
@@ -115,16 +141,12 @@ export default function OrderSummary({
               </div>
             ))}
 
-            {paymentMethod && (
+            {paymentDisplay && PaymentIcon && (
               <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/40">
                 <span>Payment</span>
                 <span className="font-medium text-foreground capitalize flex items-center gap-1">
-                  {paymentMethod === "cash" ? (
-                    <Banknote className="w-3 h-3" />
-                  ) : (
-                    <QrCode className="w-3 h-3" />
-                  )}
-                  {paymentMethod === "qr" ? "QR Code" : "Cash"}
+                  <PaymentIcon className="w-3 h-3" />
+                  {paymentDisplay.label}
                 </span>
               </div>
             )}
@@ -157,23 +179,45 @@ export default function OrderSummary({
           </span>
         </div>
 
-        <button
-          onClick={onSubmit}
-          disabled={!canSubmit || isSubmitting}
-          className="w-full py-4 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20"
-        >
-          {isSubmitting ? (
-            <>
-              <Loader2 className="w-5 h-5 animate-spin" />
-              Processing...
-            </>
-          ) : (
-            <>
-              <CreditCard className="w-5 h-5" />
-              Complete Transaction
-            </>
+        <div className="flex gap-3">
+          {onSaveDraft && (
+            <button
+              onClick={onSaveDraft}
+              disabled={!canSaveDraft}
+              className="flex-1 py-4 px-4 bg-transparent border-2 border-border hover:bg-muted/50 text-foreground rounded-xl font-semibold text-base flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isSavingDraft ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <Save className="w-5 h-5" />
+                  Save
+                </>
+              )}
+            </button>
           )}
-        </button>
+
+          <button
+            onClick={onSubmit}
+            disabled={!canSubmit || isSubmitting}
+            className="flex-[2] py-4 px-4 bg-primary hover:bg-primary/90 text-primary-foreground rounded-xl font-semibold text-lg flex items-center justify-center gap-2 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-md shadow-primary/20"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 className="w-5 h-5 animate-spin" />
+                Processing...
+              </>
+            ) : (
+              <>
+                <CreditCard className="w-5 h-5" />
+                Complete
+              </>
+            )}
+          </button>
+        </div>
       </div>
     </div>
   );

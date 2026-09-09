@@ -1,10 +1,8 @@
-import { ServicesData } from "@/types/ServicesData";
-import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "./PromoData";
 import { StaffData } from "./StaffData";
 
 export type VehicleSpecification = "4-wheels" | "2-wheels";
-export type PaymentMethod = "cash" | "qr";
+export type PaymentMethod = "cash" | "qr" | "card";
 
 export type FormErrors = {
   customerName?: string;
@@ -13,6 +11,7 @@ export type FormErrors = {
   paymentMethod?: string;
   staff?: string;
   service?: string;
+  carBrand?: string;
 };
 
 export interface SizeOption {

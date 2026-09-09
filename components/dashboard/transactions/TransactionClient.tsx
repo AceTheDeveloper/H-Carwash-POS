@@ -165,31 +165,40 @@ export default function TransactionsClient({
 
     const { utils, writeFile } = await import("xlsx");
     const rows = filteredTransactions.map((txn) => ({
-      "Customer Name": txn.customer_name || "",
-      "Cellphone No": txn.contact_number || "",
+      Code: txn.order_id || txn.id || "",
+      Brand: txn.car_brand || "",
+      "Plate No": txn.plate_number || "",
       Services: txn.services?.service_name || "Unknown Service",
       Amount: Number(txn.total_price || 0),
-      In: formatDateTime(txn.vehicle_in),
-      Out: formatDateTime(txn.vehicle_out),
+      Remarks: txn.payment_method || "",
+      "Vehicle In": formatDateTime(txn.vehicle_in),
+      "Vehicle Out": formatDateTime(txn.vehicle_out),
+      "Cellphone No": txn.contact_number || "",
     }));
 
     const worksheet = utils.json_to_sheet(rows, {
       header: [
-        "Customer Name",
-        "Cellphone No",
+        "Code",
+        "Brand",
+        "Plate No",
         "Services",
         "Amount",
-        "In",
-        "Out",
+        "Remarks",
+        "Vehicle In",
+        "Vehicle Out",
+        "Cellphone No",
       ],
     });
     worksheet["!cols"] = [
-      { wch: 24 },
-      { wch: 16 },
-      { wch: 24 },
-      { wch: 14 },
-      { wch: 24 },
-      { wch: 24 },
+      { wch: 14 }, // Code
+      { wch: 16 }, // Brand
+      { wch: 14 }, // Plate No
+      { wch: 24 }, // Services
+      { wch: 12 }, // Amount
+      { wch: 14 }, // Remarks
+      { wch: 24 }, // Vehicle In
+      { wch: 24 }, // Vehicle Out
+      { wch: 16 }, // Cellphone No
     ];
 
     const workbook = utils.book_new();
@@ -517,6 +526,18 @@ export default function TransactionsClient({
                   </p>
                 </div>
                 <div>
+                  <p className="text-xs text-muted-foreground">Brand</p>
+                  <p className="font-medium">
+                    {selectedTransaction.car_brand || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Plate No</p>
+                  <p className="font-medium font-mono">
+                    {selectedTransaction.plate_number || "-"}
+                  </p>
+                </div>
+                <div>
                   <p className="text-xs text-muted-foreground">Vehicle</p>
                   <p className="font-medium">
                     {selectedTransaction.vehicle_classification || "-"} /{" "}
@@ -524,15 +545,15 @@ export default function TransactionsClient({
                   </p>
                 </div>
                 <div>
-                  <p className="text-xs text-muted-foreground">Payment</p>
-                  <p className="font-medium capitalize">
-                    {selectedTransaction.payment_method || "-"}
-                  </p>
-                </div>
-                <div>
                   <p className="text-xs text-muted-foreground">Service</p>
                   <p className="font-medium">
                     {selectedTransaction.services?.service_name || "-"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Payment</p>
+                  <p className="font-medium capitalize">
+                    {selectedTransaction.payment_method || "-"}
                   </p>
                 </div>
                 <div>
