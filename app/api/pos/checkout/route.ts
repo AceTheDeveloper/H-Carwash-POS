@@ -10,6 +10,7 @@ interface CheckoutAddOn {
 }
 
 interface CheckoutBody {
+  order_id: string;
   customer_name: string;
   contact_number?: string;
   plate_number: string;
@@ -45,11 +46,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const order_id = await handleOrderId();
+    // const order_id = await handleOrderId();
 
     // 1. Prepare data for the main transactions table
     const transactionData = {
-      order_id: order_id,
+      order_id: body.order_id,
       customer_name: body.customer_name,
       contact_number: body.contact_number,
       plate_number: body.plate_number,

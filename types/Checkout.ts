@@ -12,6 +12,7 @@ export type FormErrors = {
   staff?: string;
   service?: string;
   carBrand?: string;
+  orderID?: string;
 };
 
 export interface SizeOption {

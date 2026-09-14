@@ -129,6 +129,8 @@ export default function Page() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
           <section className="flex min-w-0 flex-1 flex-col gap-6 pb-8">
             <CustomerInfoForm
+              orderID={form.orderID}
+              setOrderID={form.setOrderID}
               customerName={form.customerName}
               contactNumber={form.contactNumber}
               plateNumber={form.plateNumber}

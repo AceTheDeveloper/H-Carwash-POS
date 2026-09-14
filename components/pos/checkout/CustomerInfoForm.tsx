@@ -2,7 +2,7 @@
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { User, Phone, Hash, Car } from "lucide-react";
+import { User, Phone, Hash, Car, Ticket } from "lucide-react";
 import { FormErrors } from "@/types/Checkout";
 
 interface Props {
@@ -12,10 +12,12 @@ interface Props {
   carBrand: string;
   errors: FormErrors;
   isSubmitting: boolean;
+  orderID: string;
   onChangeName: (v: string) => void;
   onChangeContact: (v: string) => void;
   onChangePlate: (v: string) => void;
   onCarBrandChange: (v: string) => void;
+  setOrderID: (v: string) => void;
 }
 
 export default function CustomerInfoForm({
@@ -25,20 +27,45 @@ export default function CustomerInfoForm({
   carBrand,
   errors,
   isSubmitting,
+  orderID,
   onChangeName,
   onChangeContact,
   onChangePlate,
   onCarBrandChange,
+  setOrderID,
 }: Props) {
   return (
     <div className="space-y-4 bg-card p-5 rounded-2xl border border-border/60 shadow-sm">
-      <div className="flex items-center gap-2 border-b border-border/50 pb-3">
-        <div className="p-2 bg-primary/10 rounded-lg text-primary">
-          <User className="w-5 h-5" />
+      <div className="flex items-center justify-between gap-4 border-b border-border/50 pb-4 flex-wrap">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="p-2 bg-primary/10 rounded-lg text-primary shrink-0">
+            <User className="w-5 h-5" />
+          </div>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground truncate">
+            Step 1: Customer Information
+          </h2>
         </div>
-        <h2 className="text-lg font-semibold tracking-tight text-foreground">
-          Step 1: Customer Information
-        </h2>
+
+        <div className="space-y-1.5 w-full sm:w-40 shrink-0">
+          <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+            Serial No
+          </Label>
+          <div className="relative">
+            <Ticket className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground/60" />
+            <Input
+              placeholder="0001"
+              value={orderID}
+              disabled={isSubmitting}
+              onChange={(e) => setOrderID(e.target.value)}
+              className={`pl-9 h-10 bg-background font-mono text-right ${
+                errors.orderID ? "border-red-500" : ""
+              }`}
+            />
+          </div>
+          {errors.orderID && (
+            <p className="text-xs text-red-500 mt-1">{errors.orderID}</p>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-2">

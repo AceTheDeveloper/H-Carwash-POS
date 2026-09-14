@@ -10,6 +10,7 @@ import { ServicesData } from "@/types/ServicesData";
 import { api } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
+import handleOrderId from "@/app/api/helpers/handle_order_id";
 
 export interface SelectedAddOnItem extends AddOnsData {
   seller_id?: string | null; // Tracks who recommended/sold this add-on
@@ -91,9 +92,19 @@ export function useCheckoutForm() {
   // so re-saving updates that entry instead of creating a duplicate.
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
 
+  const [orderID, setOrderID] = useState<string>("");
+
+  async function getOrderID() {
+    const number = await handleOrderId();
+
+    setOrderID(number);
+  }
+
   // Load drafts from localStorage on mount (client-side only)
   useEffect(() => {
     setDrafts(readDraftsFromStorage());
+
+    getOrderID();
   }, []);
 
   // Keep drafts in sync across browser tabs/windows (optional but nice for a POS with multiple terminals)
@@ -107,7 +118,12 @@ export function useCheckoutForm() {
     return () => window.removeEventListener("storage", handleStorageEvent);
   }, []);
 
-  const resetForm = () => {
+  // `refreshOrderId` defaults to true since most callers (submit, discard, etc.)
+  // want a fresh suggested number. Pass false for cases where you don't want
+  // to touch the order ID (e.g. mid-form validation resets, if you ever add one).
+  const resetForm = (options?: { refreshOrderId?: boolean }) => {
+    const { refreshOrderId = true } = options ?? {};
+
     setCustomerName("");
     setContactNumber("");
     setPlateNumber("");
@@ -121,6 +137,10 @@ export function useCheckoutForm() {
     setSelectedStaff([]);
     setCurrentDraftId(null);
     setErrors({});
+
+    if (refreshOrderId) {
+      getOrderID();
+    }
   };
 
   // Error management helpers
@@ -210,6 +230,7 @@ export function useCheckoutForm() {
       newErrors.paymentMethod = "Please select a payment method";
     if (selectedStaff.length === 0)
       newErrors.staff = "Please assign at least one staff member";
+    if (!orderID.trim()) newErrors.orderID = "Order ID is required";
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -250,7 +271,10 @@ export function useCheckoutForm() {
       writeDraftsToStorage(updated);
       setDrafts(updated);
       setCurrentDraftId(id);
-      resetForm(); // clears the form after saving — see note below
+      // No row was inserted into `transactions` yet (it's just a local draft),
+      // so the "next" order ID hasn't actually changed — but we still refetch
+      // to reset the form back to a clean suggested state for a new session.
+      resetForm();
     } catch (error) {
       console.error("Failed to save draft:", error);
     } finally {
@@ -293,6 +317,7 @@ export function useCheckoutForm() {
     setIsSubmitting(true);
     try {
       const payload = {
+        order_id: orderID,
         customer_name: customerName,
         contact_number: contactNumber,
         plate_number: plateNumber,
@@ -318,6 +343,9 @@ export function useCheckoutForm() {
 
       // A completed, paid transaction shouldn't leave a stale unpaid draft behind
       if (currentDraftId) deleteDraft(currentDraftId);
+
+      // A new row now exists in `transactions`, so this correctly fetches
+      // the truly-incremented next order ID.
       resetForm();
     } catch (error) {
       console.error("Failed to submit transaction:", error);
@@ -347,6 +375,7 @@ export function useCheckoutForm() {
     errors,
     servicePrice,
     totalPrice,
+    orderID,
 
     // Setters & Actions
     setCustomerName,
@@ -367,5 +396,6 @@ export function useCheckoutForm() {
     loadDraft,
     deleteDraft,
     resetForm,
+    setOrderID,
   };
 }
