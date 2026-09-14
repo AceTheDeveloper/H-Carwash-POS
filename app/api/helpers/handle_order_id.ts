@@ -23,9 +23,8 @@ export default async function handleOrderId(): Promise<string> {
       }
     }
 
-    // Format the new order ID with zero-padding (e.g., H-ORD-0001)
-    const paddedNumber = String(nextNumber).padStart(4, "0");
-    return `H-ORD-${paddedNumber}`;
+    // Plain serial number, no prefix, no padding
+    return String(nextNumber);
   } catch (error) {
     console.error("Error generating order ID:", error);
     throw error;
