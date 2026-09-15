@@ -29,8 +29,8 @@ interface Props {
   queueList: QueueItem[];
   isLoading: boolean;
   onStatusChanged: () => void; // callback to refetch transactions after update
-  drafts: DraftShape[];                 // NEW
-  onResumeDraft: (id: string) => void;  // NEW: loads draft into checkout form
+  drafts: DraftShape[]; // NEW
+  onResumeDraft: (id: string) => void; // NEW: loads draft into checkout form
   onDiscardDraft: (id: string) => void; // NEW
 }
 
@@ -232,7 +232,7 @@ export default function QueueSheet({
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-semibold text-sm text-foreground">
-                        {draft.customerName || "Unnamed customer"}
+                        {draft.carBrand || "Unnamed customer"}
                       </p>
                       <p className="text-xs text-muted-foreground uppercase">
                         {draft.plateNumber || "No plate yet"}
