@@ -21,7 +21,7 @@ import {
   PlayCircle,
   Trash2,
 } from "lucide-react";
-import { DraftShape } from "@/hooks/useCheckoutForm"; // adjust path to wherever the hook lives
+import { DraftRow } from "@/hooks/useCheckoutForm"; // adjust path to wherever the hook lives
 
 interface Props {
   open: boolean;
@@ -29,7 +29,7 @@ interface Props {
   queueList: QueueItem[];
   isLoading: boolean;
   onStatusChanged: () => void; // callback to refetch transactions after update
-  drafts: DraftShape[]; // NEW
+  drafts: DraftRow[]; // NEW
   onResumeDraft: (id: string) => void; // NEW: loads draft into checkout form
   onDiscardDraft: (id: string) => void; // NEW
 }
@@ -232,10 +232,10 @@ export default function QueueSheet({
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-semibold text-sm text-foreground">
-                        {draft.carBrand || "Unnamed customer"}
+                        {draft.car_brand || "Unnamed customer"}
                       </p>
                       <p className="text-xs text-muted-foreground uppercase">
-                        {draft.plateNumber || "No plate yet"}
+                        {draft.plate_number || "No plate yet"}
                       </p>
                     </div>
                     <Badge className="bg-warning/15 text-warning border border-warning/30">
@@ -246,14 +246,14 @@ export default function QueueSheet({
                   <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/40">
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
-                      {new Date(draft.savedAt).toLocaleTimeString([], {
+                      {new Date(draft.saved_at).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
                     </span>
                     <span className="font-semibold text-foreground">
                       ₱
-                      {draft.totalPrice.toLocaleString("en-US", {
+                      {draft.total_price.toLocaleString("en-US", {
                         minimumFractionDigits: 2,
                       })}
                     </span>
