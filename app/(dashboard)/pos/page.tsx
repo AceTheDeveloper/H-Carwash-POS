@@ -1,30 +1,31 @@
 "use client";
 
-import { useState } from "react";
-import { useClerk } from "@clerk/nextjs";
-import { LogOut, ShieldCheck } from "lucide-react";
-import useServices from "@/hooks/useServices";
 import useAddOns from "@/hooks/useAddOns";
-import useTransactions from "@/hooks/useTransactions";
-import usePromos from "@/hooks/usePromos";
 import { useCheckoutForm } from "@/hooks/useCheckoutForm";
-import { ServicesData } from "@/types/ServicesData";
+import { useDraftsRealtime } from "@/hooks/useDraftsRealtime";
+import usePromos from "@/hooks/usePromos";
+import useServices from "@/hooks/useServices";
+import useTransactions from "@/hooks/useTransactions";
 import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "@/types/PromoData"; // <-- Added
+import { ServicesData } from "@/types/ServicesData";
+import { useClerk } from "@clerk/nextjs";
+import { LogOut, ShieldCheck } from "lucide-react";
+import { useState } from "react";
 
-import CustomerInfoForm from "@/components/pos/checkout/CustomerInfoForm";
-import VehicleTypeStep from "@/components/pos/checkout/VehicleTypeStep";
-import ServiceStep from "@/components/pos/checkout/ServiceStep";
 import AddOnsStep from "@/components/pos/checkout/AddOnsStep";
-import PromosStep from "@/components/pos/checkout/PromoStep"; // <-- Added
-import PaymentMethodStep from "@/components/pos/checkout/PaymentMethodStep";
-import StaffStep from "@/components/pos/checkout/StaffStep";
+import CustomerInfoForm from "@/components/pos/checkout/CustomerInfoForm";
 import OrderSummary from "@/components/pos/checkout/OrderSummary";
+import PaymentMethodStep from "@/components/pos/checkout/PaymentMethodStep";
+import PromosStep from "@/components/pos/checkout/PromoStep"; // <-- Added
 import QueueSheet from "@/components/pos/checkout/QueueSheet";
-import { useQueryClient } from "@tanstack/react-query";
-import { useTransactionsRealtime } from "@/hooks/useTransactionsRealtime";
-import useStaff from "@/hooks/useStaff";
+import ServiceStep from "@/components/pos/checkout/ServiceStep";
+import StaffStep from "@/components/pos/checkout/StaffStep";
+import VehicleTypeStep from "@/components/pos/checkout/VehicleTypeStep";
 import { Button } from "@/components/ui/button";
+import useStaff from "@/hooks/useStaff";
+import { useTransactionsRealtime } from "@/hooks/useTransactionsRealtime";
+import { useQueryClient } from "@tanstack/react-query";
 
 export default function Page() {
   const { signOut } = useClerk();
@@ -41,6 +42,7 @@ export default function Page() {
   const form = useCheckoutForm();
 
   useTransactionsRealtime();
+  useDraftsRealtime();
 
   const addOnsList: AddOnsData[] =
     addOnsData?.json?.data ||

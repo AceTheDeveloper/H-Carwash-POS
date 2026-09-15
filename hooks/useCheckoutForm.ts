@@ -8,56 +8,40 @@ import {
 import { PromoData } from "@/types/PromoData";
 import { ServicesData } from "@/types/ServicesData";
 import { api } from "@/lib/api";
+import { supabase } from "@/lib/supabase";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useMemo, useState } from "react";
 import handleOrderId from "@/app/api/helpers/handle_order_id";
+import useDrafts from "@/hooks/useDrafts";
 
 export interface SelectedAddOnItem extends AddOnsData {
-  seller_id?: string | null; // Tracks who recommended/sold this add-on
+  seller_id?: string | null;
 }
 
-const DRAFT_KEY = "pos-checkout-drafts"; // stores an array of drafts
-
-// Shape of what actually gets persisted to localStorage
-export interface DraftShape {
+// Shape returned from the `drafts` table (snake_case, matches DB columns)
+export interface DraftRow {
   id: string;
-  customerName: string;
-  contactNumber: string;
-  plateNumber: string;
-  carBrand: string;
-  vehicleSpecification: VehicleSpecification;
-  selectedSizeObj: SizeOption | null;
-  selectedService: ServicesData | null;
-  selectedAddOns: SelectedAddOnItem[];
-  selectedPromo: PromoData | null;
-  paymentMethod: PaymentMethod | null;
-  selectedStaff: string[];
-  totalPrice: number;
-  savedAt: string;
-}
-
-// Raw read/write helpers — these touch localStorage directly.
-// Everything else in the hook should go through the `drafts` state instead,
-// so the UI always has a fresh copy without re-reading localStorage on every render.
-function readDraftsFromStorage(): DraftShape[] {
-  try {
-    const raw = localStorage.getItem(DRAFT_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-}
-
-function writeDraftsToStorage(drafts: DraftShape[]) {
-  try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-  } catch (error) {
-    console.error("Failed to write drafts to localStorage:", error);
-  }
+  customer_name: string;
+  contact_number: string;
+  plate_number: string;
+  car_brand: string;
+  vehicle_specification: VehicleSpecification;
+  selected_size_obj: SizeOption | null;
+  selected_service: ServicesData | null;
+  selected_add_ons: SelectedAddOnItem[];
+  selected_promo: PromoData | null;
+  payment_method: PaymentMethod | null;
+  selected_staff: string[];
+  total_price: number;
+  order_id: string;
+  saved_at: string;
+  updated_at: string;
 }
 
 export function useCheckoutForm() {
   const queryClient = useQueryClient();
+  const { data: draftsData } = useDrafts();
+  const drafts: DraftRow[] = draftsData ?? [];
 
   // Form Field States
   const [customerName, setCustomerName] = useState("");
@@ -72,10 +56,7 @@ export function useCheckoutForm() {
   const [selectedService, setSelectedService] = useState<ServicesData | null>(
     null,
   );
-
-  // Add-Ons with Top-Up Seller support
   const [selectedAddOns, setSelectedAddOns] = useState<SelectedAddOnItem[]>([]);
-
   const [selectedPromo, setSelectedPromo] = useState<PromoData | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
@@ -86,41 +67,18 @@ export function useCheckoutForm() {
   const [isSavingDraft, setIsSavingDraft] = useState(false);
   const [errors, setErrors] = useState<FormErrors>({});
 
-  // Live list of drafts, mirrored from localStorage. This is what the UI (Drafts tab) reads.
-  const [drafts, setDrafts] = useState<DraftShape[]>([]);
-  // Tracks which draft (if any) the current form session originated from,
-  // so re-saving updates that entry instead of creating a duplicate.
   const [currentDraftId, setCurrentDraftId] = useState<string | null>(null);
-
   const [orderID, setOrderID] = useState<string>("");
 
   async function getOrderID() {
     const number = await handleOrderId();
-
     setOrderID(number);
   }
 
-  // Load drafts from localStorage on mount (client-side only)
   useEffect(() => {
-    setDrafts(readDraftsFromStorage());
-
     getOrderID();
   }, []);
 
-  // Keep drafts in sync across browser tabs/windows (optional but nice for a POS with multiple terminals)
-  useEffect(() => {
-    const handleStorageEvent = (e: StorageEvent) => {
-      if (e.key === DRAFT_KEY) {
-        setDrafts(readDraftsFromStorage());
-      }
-    };
-    window.addEventListener("storage", handleStorageEvent);
-    return () => window.removeEventListener("storage", handleStorageEvent);
-  }, []);
-
-  // `refreshOrderId` defaults to true since most callers (submit, discard, etc.)
-  // want a fresh suggested number. Pass false for cases where you don't want
-  // to touch the order ID (e.g. mid-form validation resets, if you ever add one).
   const resetForm = (options?: { refreshOrderId?: boolean }) => {
     const { refreshOrderId = true } = options ?? {};
 
@@ -143,23 +101,20 @@ export function useCheckoutForm() {
     }
   };
 
-  // Error management helpers
   const clearError = (field: keyof FormErrors) => {
     setErrors((prev) => ({ ...prev, [field]: undefined }));
   };
 
-  // Toggle a service and reset size if vehicle type changes
   const toggleService = (service: ServicesData) => {
     if (selectedService?.id === service.id) {
       setSelectedService(null);
       setSelectedSizeObj(null);
     } else {
       setSelectedService(service);
-      setSelectedSizeObj(null); // Reset size when service changes
+      setSelectedSizeObj(null);
     }
   };
 
-  // Toggle add-ons (adds with null seller_id initially)
   const toggleAddOn = (addon: AddOnsData) => {
     setSelectedAddOns((prev) => {
       const exists = prev.find((item) => item.id === addon.id);
@@ -171,7 +126,6 @@ export function useCheckoutForm() {
     });
   };
 
-  // Update the top-up seller for a specific add-on
   const updateAddOnSeller = (addonId: string, sellerId: string) => {
     setSelectedAddOns((prev) =>
       prev.map((item) =>
@@ -180,7 +134,6 @@ export function useCheckoutForm() {
     );
   };
 
-  // Toggle staff assignment
   const toggleStaffMember = (staffId: string) => {
     setSelectedStaff((prev) =>
       prev.includes(staffId)
@@ -190,13 +143,11 @@ export function useCheckoutForm() {
     clearError("staff");
   };
 
-  // Calculate base service price based on selected size option
   const servicePrice = useMemo(() => {
     if (!selectedSizeObj) return 0;
     return Number(selectedSizeObj.price) || 0;
   }, [selectedSizeObj]);
 
-  // Calculate total price including add-ons and discounts from promo
   const totalPrice = useMemo(() => {
     const addonsTotal = selectedAddOns.reduce(
       (sum, item) => sum + Number(item.price),
@@ -206,8 +157,7 @@ export function useCheckoutForm() {
 
     if (selectedPromo) {
       if (selectedPromo.discount_type === "percentage") {
-        const discount = subtotal * (Number(selectedPromo.value) / 100);
-        subtotal -= discount;
+        subtotal -= subtotal * (Number(selectedPromo.value) / 100);
       } else {
         subtotal -= Number(selectedPromo.value);
       }
@@ -216,10 +166,8 @@ export function useCheckoutForm() {
     return Math.max(0, subtotal);
   }, [servicePrice, selectedAddOns, selectedPromo]);
 
-  // Whether there's anything worth saving as a draft
   const canSaveDraft = !!selectedService || selectedAddOns.length > 0;
 
-  // Validation before final submission
   const validateForm = () => {
     const newErrors: FormErrors = {};
     if (!customerName.trim())
@@ -236,44 +184,42 @@ export function useCheckoutForm() {
     return Object.keys(newErrors).length === 0;
   };
 
-  // Save (or update) the current form as a draft. Multiple drafts can exist
-  // at once — one per car currently being washed without payment yet.
+  // Save (or update) the current form as a draft — now written to Supabase
+  // so it's visible on every terminal, not just this browser.
   const onSaveDraft = async () => {
     if (!canSaveDraft || isSavingDraft) return;
 
     setIsSavingDraft(true);
     try {
-      const id = currentDraftId ?? crypto.randomUUID();
-      const draft: DraftShape = {
-        id,
-        customerName,
-        contactNumber,
-        plateNumber,
-        carBrand,
-        vehicleSpecification,
-        selectedSizeObj,
-        selectedService,
-        selectedAddOns,
-        selectedPromo,
-        paymentMethod,
-        selectedStaff,
-        totalPrice,
-        savedAt: new Date().toISOString(),
+      const row = {
+        customer_name: customerName,
+        contact_number: contactNumber,
+        plate_number: plateNumber,
+        car_brand: carBrand,
+        vehicle_specification: vehicleSpecification,
+        selected_size_obj: selectedSizeObj,
+        selected_service: selectedService,
+        selected_add_ons: selectedAddOns,
+        selected_promo: selectedPromo,
+        payment_method: paymentMethod,
+        selected_staff: selectedStaff,
+        total_price: totalPrice,
+        order_id: orderID,
+        updated_at: new Date().toISOString(),
       };
 
-      const current = readDraftsFromStorage();
-      const existingIndex = current.findIndex((d) => d.id === id);
-      const updated =
-        existingIndex >= 0
-          ? current.map((d, i) => (i === existingIndex ? draft : d))
-          : [...current, draft];
+      if (currentDraftId) {
+        const { error } = await supabase
+          .from("drafts")
+          .update(row)
+          .eq("id", currentDraftId);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("drafts").insert(row);
+        if (error) throw new Error(error.message);
+      }
 
-      writeDraftsToStorage(updated);
-      setDrafts(updated);
-      setCurrentDraftId(id);
-      // No row was inserted into `transactions` yet (it's just a local draft),
-      // so the "next" order ID hasn't actually changed — but we still refetch
-      // to reset the form back to a clean suggested state for a new session.
+      await queryClient.invalidateQueries({ queryKey: ["drafts"] });
       resetForm();
     } catch (error) {
       console.error("Failed to save draft:", error);
@@ -287,30 +233,34 @@ export function useCheckoutForm() {
     const draft = drafts.find((d) => d.id === id);
     if (!draft) return;
 
-    setCustomerName(draft.customerName ?? "");
-    setContactNumber(draft.contactNumber ?? "");
-    setPlateNumber(draft.plateNumber ?? "");
-    setCarBrand(draft.carBrand ?? "");
-    setVehicleSpecification(draft.vehicleSpecification ?? "4-wheels");
-    setSelectedSizeObj(draft.selectedSizeObj ?? null);
-    setSelectedService(draft.selectedService ?? null);
-    setSelectedAddOns(draft.selectedAddOns ?? []);
-    setSelectedPromo(draft.selectedPromo ?? null);
-    setPaymentMethod(draft.paymentMethod ?? null);
-    setSelectedStaff(draft.selectedStaff ?? []);
+    setCustomerName(draft.customer_name ?? "");
+    setContactNumber(draft.contact_number ?? "");
+    setPlateNumber(draft.plate_number ?? "");
+    setCarBrand(draft.car_brand ?? "");
+    setVehicleSpecification(draft.vehicle_specification ?? "4-wheels");
+    setSelectedSizeObj(draft.selected_size_obj ?? null);
+    setSelectedService(draft.selected_service ?? null);
+    setSelectedAddOns(draft.selected_add_ons ?? []);
+    setSelectedPromo(draft.selected_promo ?? null);
+    setPaymentMethod(draft.payment_method ?? null);
+    setSelectedStaff(draft.selected_staff ?? []);
+    setOrderID(draft.order_id ?? "");
     setCurrentDraftId(draft.id);
     setErrors({});
   };
 
   // Remove one draft (used by "Discard" in the Drafts tab, and after successful checkout)
-  const deleteDraft = (id: string) => {
-    const updated = readDraftsFromStorage().filter((d) => d.id !== id);
-    writeDraftsToStorage(updated);
-    setDrafts(updated);
-    if (currentDraftId === id) setCurrentDraftId(null);
+  const deleteDraft = async (id: string) => {
+    try {
+      const { error } = await supabase.from("drafts").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+      await queryClient.invalidateQueries({ queryKey: ["drafts"] });
+      if (currentDraftId === id) setCurrentDraftId(null);
+    } catch (error) {
+      console.error("Failed to delete draft:", error);
+    }
   };
 
-  // Submit Handler
   const onSubmit = async () => {
     if (!validateForm()) return;
 
@@ -341,11 +291,7 @@ export function useCheckoutForm() {
       await api.post("/api/pos/checkout", payload);
       await queryClient.invalidateQueries({ queryKey: ["transactions"] });
 
-      // A completed, paid transaction shouldn't leave a stale unpaid draft behind
-      if (currentDraftId) deleteDraft(currentDraftId);
-
-      // A new row now exists in `transactions`, so this correctly fetches
-      // the truly-incremented next order ID.
+      if (currentDraftId) await deleteDraft(currentDraftId);
       resetForm();
     } catch (error) {
       console.error("Failed to submit transaction:", error);
@@ -355,7 +301,6 @@ export function useCheckoutForm() {
   };
 
   return {
-    // States
     customerName,
     contactNumber,
     plateNumber,
@@ -377,7 +322,6 @@ export function useCheckoutForm() {
     totalPrice,
     orderID,
 
-    // Setters & Actions
     setCustomerName,
     setContactNumber,
     setPlateNumber,
