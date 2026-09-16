@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import useServices from "@/hooks/useServices";
 import useStaff from "@/hooks/useStaff";
+import useAddOns from "@/hooks/useAddOns";
+import { exportDailyLogExcel, DailyLogTransaction } from "@/lib/dailyLogExport";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -133,6 +135,7 @@ export default function AdminReportsPage() {
 
   const { data: services } = useServices();
   const { data: staffList } = useStaff();
+  const { data: addOnsList } = useAddOns();
 
   const getServiceName = (transaction: ReportTransaction) => {
     const relation = Array.isArray(transaction.services)
@@ -210,7 +213,9 @@ export default function AdminReportsPage() {
     },
   });
 
-  const handleExport = async (format: "csv" | "excel" | "pdf") => {
+  const handleExport = async (
+    format: "csv" | "excel" | "pdf" | "daily-log",
+  ) => {
     try {
       setIsExporting(true);
       setExportOpen(false);
@@ -382,6 +387,22 @@ export default function AdminReportsPage() {
         });
 
         doc.save(`${fileName}.pdf`);
+      } else if (format === "daily-log") {
+        const addOnLabels: Record<string, string> = {};
+        (addOnsList || []).forEach((a: { id: string; label: string }) => {
+          addOnLabels[a.id] = a.label;
+        });
+        const staffNameById: Record<string, string> = {};
+        (staffList || []).forEach((s: { id: string; name: string }) => {
+          staffNameById[s.id] = s.name;
+        });
+
+        await exportDailyLogExcel(
+          txs as unknown as DailyLogTransaction[],
+          { addOnLabels, staffNames: staffNameById },
+          startDate,
+          endDate,
+        );
       }
     } catch (err) {
       console.error("Export failed:", err);
@@ -461,6 +482,15 @@ export default function AdminReportsPage() {
               >
                 <FileIcon className="mr-2 h-4 w-4 text-rose-600" /> Export as
                 PDF (Full)
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="justify-start font-normal"
+                onClick={() => handleExport("daily-log")}
+              >
+                <FileSpreadsheet className="mr-2 h-4 w-4 text-amber-600" />{" "}
+                Daily Log (Excel)
               </Button>
             </div>
           </PopoverContent>
