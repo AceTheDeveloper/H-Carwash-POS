@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { PromoData } from "@/types/PromoData";
 import { Badge } from "@/components/ui/badge";
-import { Tag, Percent, Banknote } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Tag, Percent, Banknote, QrCode } from "lucide-react";
+import PromoQRCode from "./PromoQrCode";
 
 interface Props {
   data: PromoData;
@@ -10,6 +13,8 @@ interface Props {
 }
 
 export default function PromoCard({ data, onToggle }: Props) {
+  const [isQrOpen, setIsQrOpen] = useState(false);
+
   return (
     <div
       onClick={onToggle}
@@ -40,7 +45,7 @@ export default function PromoCard({ data, onToggle }: Props) {
         </p>
       )}
 
-      <div className="flex items-center pt-2 border-t border-border/40">
+      <div className="flex items-center justify-between pt-2 border-t border-border/40">
         <span className="flex items-center gap-1 text-xs font-semibold text-primary">
           {data.discount_type === "percentage" ? (
             <Percent className="w-3.5 h-3.5" />
@@ -51,7 +56,29 @@ export default function PromoCard({ data, onToggle }: Props) {
             ? `${data.value}% off`
             : `₱${data.value} off`}
         </span>
+
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 px-2 text-xs"
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsQrOpen(true);
+          }}
+        >
+          <QrCode className="w-3.5 h-3.5 mr-1" />
+          QR Code
+        </Button>
       </div>
+
+      <PromoQRCode
+        promo={data}
+        open={isQrOpen}
+        onOpenChange={(open) => {
+          setIsQrOpen(open);
+        }}
+      />
     </div>
   );
 }

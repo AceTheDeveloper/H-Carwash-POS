@@ -1,8 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { PromoData } from "@/types/PromoData";
-import { Tag, Percent, Banknote, CheckCircle2 } from "lucide-react";
+import { Tag, Percent, Banknote, CheckCircle2, ScanLine } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import PromoQRScanner from "./PromoQRScanner";
 
 interface Props {
   promos: PromoData[];
@@ -17,14 +20,34 @@ export default function PromosStep({
   isSubmitting,
   onSelect,
 }: Props) {
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+
   if (!promos || promos.length === 0) return null;
 
   return (
     <div className="space-y-3 bg-card p-4 md:p-5 rounded-2xl border border-border/50 shadow-sm">
-      <div className="flex items-center gap-2 pb-3 border-b border-border/50">
-        <Tag className="w-5 h-5 text-primary" />
-        <h2 className="font-semibold text-foreground">Apply Promo</h2>
+      <div className="flex items-center justify-between gap-2 pb-3 border-b border-border/50">
+        <div className="flex items-center gap-2">
+          <Tag className="w-5 h-5 text-primary" />
+          <h2 className="font-semibold text-foreground">Apply Promo</h2>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          disabled={isSubmitting}
+          onClick={() => setIsScannerOpen(true)}
+        >
+          <ScanLine className="w-3.5 h-3.5 mr-1.5" />
+          Scan QR
+        </Button>
       </div>
+
+      <PromoQRScanner
+        open={isScannerOpen}
+        onOpenChange={setIsScannerOpen}
+        onScanned={(promo) => onSelect(promo)}
+      />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
         {promos.map((promo) => {
