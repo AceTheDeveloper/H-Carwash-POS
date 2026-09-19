@@ -8,7 +8,9 @@ export async function GET(req: NextRequest) {
     if (authResult.error) return authResult.error;
     const { data, error } = await supabase
       .from("promos")
-      .select("*")
+      .select(
+        "*, reward_add_on:add_ons(id, label, price, created_at, updated_at)",
+      )
       .order("name", { ascending: true });
 
     if (error) {

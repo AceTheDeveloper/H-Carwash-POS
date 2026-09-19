@@ -16,6 +16,11 @@ import useDrafts from "@/hooks/useDrafts";
 
 export interface SelectedAddOnItem extends AddOnsData {
   seller_id?: string | null;
+  /** True when this line was added automatically by a promo (free add-on
+   *  or bundle-price add-on), rather than picked by the cashier. */
+  is_promo_item?: boolean;
+  /** The promo that granted this item, when is_promo_item is true. */
+  promo_id?: string;
 }
 
 // Shape returned from the `drafts` table (snake_case, matches DB columns)
@@ -57,7 +62,9 @@ export function useCheckoutForm() {
     null,
   );
   const [selectedAddOns, setSelectedAddOns] = useState<SelectedAddOnItem[]>([]);
-  const [selectedPromo, setSelectedPromo] = useState<PromoData | null>(null);
+  const [selectedPromo, setSelectedPromoState] = useState<PromoData | null>(
+    null,
+  );
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
   );
@@ -90,7 +97,7 @@ export function useCheckoutForm() {
     setSelectedSizeObj(null);
     setSelectedService(null);
     setSelectedAddOns([]);
-    setSelectedPromo(null);
+    setSelectedPromoState(null);
     setPaymentMethod(null);
     setSelectedStaff([]);
     setCurrentDraftId(null);
@@ -118,12 +125,47 @@ export function useCheckoutForm() {
   const toggleAddOn = (addon: AddOnsData) => {
     setSelectedAddOns((prev) => {
       const exists = prev.find((item) => item.id === addon.id);
-      if (exists) {
-        return prev.filter((item) => item.id !== addon.id);
-      } else {
-        return [...prev, { ...addon, seller_id: null }];
-      }
+      // Promo-granted items can't be manually removed — they disappear
+      // automatically when the promo itself is deselected (see applyPromo).
+      if (exists?.is_promo_item) return prev;
+      if (exists) return prev.filter((item) => item.id !== addon.id);
+      return [...prev, { ...addon, seller_id: null }];
     });
+  };
+
+  // Applying a promo does two things at once:
+  //  1. Sets it as the active promo (used for the % / fixed discount math).
+  //  2. If it's a "free add-on" or "bundle price" promo, drops the reward
+  //     add-on straight into the cart at the right price (0, or the bundle
+  //     price) so it shows up in Order Summary and gets billed correctly.
+  // Swapping to a different promo, or clearing it, removes any previously
+  // auto-added reward item first.
+  const applyPromo = (promo: PromoData | null) => {
+    setSelectedAddOns((prev) => {
+      const withoutReward = prev.filter((item) => !item.is_promo_item);
+
+      if (!promo || promo.promo_type === "discount" || !promo.reward_add_on) {
+        return withoutReward;
+      }
+
+      const rewardPrice =
+        promo.promo_type === "free_add_on"
+          ? 0
+          : Number(promo.reward_price ?? 0);
+
+      return [
+        ...withoutReward,
+        {
+          ...promo.reward_add_on,
+          price: rewardPrice,
+          seller_id: null,
+          is_promo_item: true,
+          promo_id: promo.id,
+        },
+      ];
+    });
+
+    setSelectedPromoState(promo);
   };
 
   const updateAddOnSeller = (addonId: string, sellerId: string) => {
@@ -155,7 +197,10 @@ export function useCheckoutForm() {
     );
     let subtotal = servicePrice + addonsTotal;
 
-    if (selectedPromo) {
+    // Only "discount" promos subtract from the subtotal. Reward promos
+    // (free add-on / bundle price) already show up correctly because the
+    // reward item itself was added at the right price in applyPromo above.
+    if (selectedPromo && selectedPromo.promo_type === "discount") {
       if (selectedPromo.discount_type === "percentage") {
         subtotal -= subtotal * (Number(selectedPromo.value) / 100);
       } else {
@@ -241,7 +286,7 @@ export function useCheckoutForm() {
     setSelectedSizeObj(draft.selected_size_obj ?? null);
     setSelectedService(draft.selected_service ?? null);
     setSelectedAddOns(draft.selected_add_ons ?? []);
-    setSelectedPromo(draft.selected_promo ?? null);
+    setSelectedPromoState(draft.selected_promo ?? null);
     setPaymentMethod(draft.payment_method ?? null);
     setSelectedStaff(draft.selected_staff ?? []);
     setOrderID(draft.order_id ?? "");
@@ -281,6 +326,8 @@ export function useCheckoutForm() {
           id: addon.id,
           price: addon.price,
           seller_id: addon.seller_id || null,
+          is_promo_item: addon.is_promo_item || false,
+          promo_id: addon.promo_id || null,
         })),
         promo: selectedPromo,
         payment_method: paymentMethod,
@@ -328,7 +375,7 @@ export function useCheckoutForm() {
     setCarBrand,
     setVehicleSpecification,
     setSelectedSizeObj,
-    setSelectedPromo,
+    setSelectedPromo: applyPromo,
     setPaymentMethod,
     toggleService,
     toggleAddOn,

@@ -3,6 +3,7 @@
 import {
   Banknote,
   CreditCard,
+  Gift,
   Loader2,
   QrCode,
   Receipt,
@@ -11,8 +12,8 @@ import {
   Tag,
 } from "lucide-react";
 import { ServicesData } from "@/types/ServicesData";
-import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "@/types/PromoData";
+import { SelectedAddOnItem } from "@/hooks/useCheckoutForm";
 import {
   PaymentMethod,
   StaffMember,
@@ -24,7 +25,7 @@ interface Props {
   selectedSizeSize?: string;
   vehicleSpecification: VehicleSpecification;
   servicePrice: number;
-  selectedAddOns: AddOnsData[];
+  selectedAddOns: SelectedAddOnItem[];
   paymentMethod: PaymentMethod | null;
   selectedStaff: string[];
   staffList: StaffMember[];
@@ -95,6 +96,13 @@ export default function OrderSummary({
           </div>
         ) : (
           <div className="space-y-3">
+            {selectedPromo && (
+              <div className="flex items-center gap-2 p-3 rounded-xl border border-primary/30 bg-primary/5 text-xs font-semibold text-primary">
+                <Tag className="w-3.5 h-3.5 shrink-0" />
+                &quot;{selectedPromo.name}&quot; applied
+              </div>
+            )}
+
             {selectedService && (
               <div className="p-4 bg-card border border-primary/20 rounded-xl shadow-sm relative overflow-hidden">
                 <div className="absolute left-0 top-0 bottom-0 w-1 bg-primary"></div>
@@ -122,21 +130,34 @@ export default function OrderSummary({
             {selectedAddOns.map((addon) => (
               <div
                 key={addon.id}
-                className="p-3 bg-card border border-border/60 rounded-xl shadow-sm flex justify-between items-center"
+                className={`p-3 bg-card border rounded-xl shadow-sm flex justify-between items-center ${
+                  addon.is_promo_item
+                    ? "border-primary/30 bg-primary/[0.03]"
+                    : "border-border/60"
+                }`}
               >
                 <div className="flex flex-col">
-                  <span className="text-xs font-semibold text-muted-foreground uppercase">
-                    Add-On
+                  <span className="text-xs font-semibold text-muted-foreground uppercase flex items-center gap-1">
+                    {addon.is_promo_item && (
+                      <Gift className="w-3 h-3 text-primary" />
+                    )}
+                    {addon.is_promo_item ? "Promo Add-On" : "Add-On"}
                   </span>
                   <span className="font-medium text-foreground text-sm">
                     {addon.label}
                   </span>
                 </div>
                 <span className="font-semibold text-sm text-foreground">
-                  ₱
-                  {Number(addon.price).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                  })}
+                  {addon.is_promo_item && Number(addon.price) === 0 ? (
+                    <span className="text-success">FREE</span>
+                  ) : (
+                    <>
+                      ₱
+                      {Number(addon.price).toLocaleString("en-US", {
+                        minimumFractionDigits: 2,
+                      })}
+                    </>
+                  )}
                 </span>
               </div>
             ))}

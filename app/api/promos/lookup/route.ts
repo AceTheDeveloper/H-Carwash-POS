@@ -17,7 +17,9 @@ export async function GET(req: NextRequest) {
 
     const { data, error } = await supabase
       .from("promos")
-      .select("*")
+      .select(
+        "*, reward_add_on:add_ons(id, label, price, created_at, updated_at)",
+      )
       .eq("code", code)
       .maybeSingle();
 

@@ -4,16 +4,61 @@ import { useState } from "react";
 import { PromoData } from "@/types/PromoData";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Tag, Percent, Banknote, QrCode } from "lucide-react";
+import {
+  Tag,
+  Percent,
+  Banknote,
+  Gift,
+  PackagePlus,
+  QrCode,
+  Eye,
+} from "lucide-react";
 import PromoQRCode from "./PromoQrCode";
+import PromoViewDialog from "./PromoViewDialog";
 
 interface Props {
   data: PromoData;
   onToggle: () => void;
 }
 
+function PromoBadge({ promo }: { promo: PromoData }) {
+  if (promo.promo_type === "free_add_on") {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+        <Gift className="w-3.5 h-3.5" />
+        Free: {promo.reward_add_on?.label ?? "Add-on"}
+      </span>
+    );
+  }
+
+  if (promo.promo_type === "special_add_on_price") {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+        <PackagePlus className="w-3.5 h-3.5" />
+        {promo.reward_add_on?.label ?? "Add-on"} for ₱{promo.reward_price ?? 0}
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1 text-xs font-semibold text-primary">
+      {promo.discount_type === "percentage" ? (
+        <Percent className="w-3.5 h-3.5" />
+      ) : (
+        <Banknote className="w-3.5 h-3.5" />
+      )}
+      {promo.discount_type === "percentage"
+        ? `${promo.value}% off`
+        : `₱${promo.value} off`}
+    </span>
+  );
+}
+
 export default function PromoCard({ data, onToggle }: Props) {
-  const [isQrOpen, setIsQrOpen] = useState(false);
+  // Only one of View / QR can be open at a time — sharing this single bit
+  // of state instead of two separate useState booleans is what prevents
+  // them from ever stacking on top of each other.
+  const [activeModal, setActiveModal] = useState<"view" | "qr" | null>(null);
 
   return (
     <div
@@ -46,38 +91,49 @@ export default function PromoCard({ data, onToggle }: Props) {
       )}
 
       <div className="flex items-center justify-between pt-2 border-t border-border/40">
-        <span className="flex items-center gap-1 text-xs font-semibold text-primary">
-          {data.discount_type === "percentage" ? (
-            <Percent className="w-3.5 h-3.5" />
-          ) : (
-            <Banknote className="w-3.5 h-3.5" />
-          )}
-          {data.discount_type === "percentage"
-            ? `${data.value}% off`
-            : `₱${data.value} off`}
-        </span>
+        <PromoBadge promo={data} />
 
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsQrOpen(true);
-          }}
-        >
-          <QrCode className="w-3.5 h-3.5 mr-1" />
-          QR Code
-        </Button>
+        <div className="flex items-center gap-1.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveModal("view");
+            }}
+          >
+            <Eye className="w-3.5 h-3.5 mr-1" />
+            View
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-7 px-2 text-xs"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActiveModal("qr");
+            }}
+          >
+            <QrCode className="w-3.5 h-3.5 mr-1" />
+            QR Code
+          </Button>
+        </div>
       </div>
+
+      <PromoViewDialog
+        promo={data}
+        open={activeModal === "view"}
+        onOpenChange={(open) => setActiveModal(open ? "view" : null)}
+      />
 
       <PromoQRCode
         promo={data}
-        open={isQrOpen}
-        onOpenChange={(open) => {
-          setIsQrOpen(open);
-        }}
+        open={activeModal === "qr"}
+        onOpenChange={(open) => setActiveModal(open ? "qr" : null)}
       />
     </div>
   );

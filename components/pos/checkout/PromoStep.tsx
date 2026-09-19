@@ -2,7 +2,15 @@
 
 import { useState } from "react";
 import { PromoData } from "@/types/PromoData";
-import { Tag, Percent, Banknote, CheckCircle2, ScanLine } from "lucide-react";
+import {
+  Tag,
+  Percent,
+  Banknote,
+  Gift,
+  PackagePlus,
+  CheckCircle2,
+  ScanLine,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import PromoQRScanner from "./PromoQRScanner";
@@ -12,6 +20,39 @@ interface Props {
   selectedPromo: PromoData | null;
   isSubmitting: boolean;
   onSelect: (promo: PromoData | null) => void;
+}
+
+function PromoBadge({ promo }: { promo: PromoData }) {
+  if (promo.promo_type === "free_add_on") {
+    return (
+      <span className="flex items-center gap-1 text-xs font-bold text-primary">
+        <Gift className="w-3.5 h-3.5" />
+        Free: {promo.reward_add_on?.label ?? "Add-on"}
+      </span>
+    );
+  }
+
+  if (promo.promo_type === "special_add_on_price") {
+    return (
+      <span className="flex items-center gap-1 text-xs font-bold text-primary">
+        <PackagePlus className="w-3.5 h-3.5" />
+        {promo.reward_add_on?.label ?? "Add-on"} for ₱{promo.reward_price ?? 0}
+      </span>
+    );
+  }
+
+  return (
+    <span className="flex items-center gap-1 text-xs font-bold text-primary">
+      {promo.discount_type === "percentage" ? (
+        <Percent className="w-3.5 h-3.5" />
+      ) : (
+        <Banknote className="w-3.5 h-3.5" />
+      )}
+      {promo.discount_type === "percentage"
+        ? `${promo.value}% off`
+        : `₱${promo.value} off`}
+    </span>
+  );
 }
 
 export default function PromosStep({
@@ -85,16 +126,7 @@ export default function PromosStep({
               </div>
 
               <div className="flex items-center pt-2 border-t border-border/40">
-                <span className="flex items-center gap-1 text-xs font-bold text-primary">
-                  {promo.discount_type === "percentage" ? (
-                    <Percent className="w-3.5 h-3.5" />
-                  ) : (
-                    <Banknote className="w-3.5 h-3.5" />
-                  )}
-                  {promo.discount_type === "percentage"
-                    ? `${promo.value}% off`
-                    : `₱${promo.value} off`}
-                </span>
+                <PromoBadge promo={promo} />
               </div>
             </div>
           );

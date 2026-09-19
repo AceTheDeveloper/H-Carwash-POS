@@ -2,19 +2,16 @@
 
 import { AddOnsData } from "@/types/AddOnsData";
 import { StaffMember } from "@/types/Checkout";
-import { CheckCircle2, Tag, User } from "lucide-react";
-
-interface SelectedAddOnWithSeller extends AddOnsData {
-  seller_id?: string | null;
-}
+import { SelectedAddOnItem } from "@/hooks/useCheckoutForm";
+import { CheckCircle2, Tag, User, Gift } from "lucide-react";
 
 interface Props {
   addOns: AddOnsData[];
-  selectedAddOns: SelectedAddOnWithSeller[];
-  staffList: StaffMember[]; // ⬅️ Added staff list
+  selectedAddOns: SelectedAddOnItem[];
+  staffList: StaffMember[];
   isSubmitting: boolean;
   onToggle: (addon: AddOnsData) => void;
-  onUpdateSeller: (addonId: string, sellerId: string) => void; // ⬅️ Added seller updater
+  onUpdateSeller: (addonId: string, sellerId: string) => void;
 }
 
 export default function AddOnsStep({
@@ -43,6 +40,7 @@ export default function AddOnsStep({
               (item) => item.id === addon.id,
             );
             const isSelected = !!selectedItem;
+            const isPromoItem = !!selectedItem?.is_promo_item;
 
             return (
               <div
@@ -53,20 +51,39 @@ export default function AddOnsStep({
                     : "border-border/60 bg-card hover:border-primary/40 hover:shadow-sm"
                 }`}
               >
-                {/* Main clickable card header */}
+                {/* Main clickable card header — promo-granted items aren't
+                    clickable, they're removed by deselecting the promo. */}
                 <div
-                  onClick={() => !isSubmitting && onToggle(addon)}
-                  className="cursor-pointer flex items-center justify-between"
+                  onClick={() =>
+                    !isSubmitting && !isPromoItem && onToggle(addon)
+                  }
+                  className={`flex items-center justify-between ${
+                    isPromoItem ? "cursor-default" : "cursor-pointer"
+                  }`}
                 >
                   <div className="flex flex-col pr-2">
                     <span className="font-semibold text-foreground text-sm">
                       {addon.label}
                     </span>
+                    {isPromoItem && (
+                      <span className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-primary mt-0.5">
+                        <Gift className="w-3 h-3" />
+                        Included by promo
+                      </span>
+                    )}
                     <span className="text-xs text-muted-foreground mt-1 font-medium">
-                      ₱
-                      {Number(addon.price).toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                      })}
+                      {isPromoItem && selectedItem.price === 0 ? (
+                        <span className="text-success font-semibold">FREE</span>
+                      ) : (
+                        <>
+                          ₱
+                          {Number(
+                            isPromoItem ? selectedItem.price : addon.price,
+                          ).toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                          })}
+                        </>
+                      )}
                     </span>
                   </div>
                   <div
@@ -80,8 +97,9 @@ export default function AddOnsStep({
                   </div>
                 </div>
 
-                {/* Top-Up Seller Dropdown (Only shows if this add-on is selected) */}
-                {isSelected && (
+                {/* Top-Up Seller Dropdown — hidden for promo-granted items,
+                    since no staff member actually "sold" it. */}
+                {isSelected && !isPromoItem && (
                   <div
                     className="pt-2 border-t border-border/40 space-y-1"
                     onClick={(e) => e.stopPropagation()}
