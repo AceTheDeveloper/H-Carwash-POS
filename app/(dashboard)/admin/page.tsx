@@ -25,9 +25,18 @@ export default async function DashboardPage() {
     console.error("Error fetching dashboard data:", error.message);
   }
 
-  const transactions = rawTransactions || [];
-  const getServiceName = (transaction: (typeof transactions)[number]) =>
-    transaction.services?.[0]?.service_name;
+  // Cancelled orders are excluded from every dashboard figure.
+  const transactions = (rawTransactions || []).filter(
+    (txn) => txn.status?.toLowerCase() !== "cancelled",
+  );
+  // `services` is a many-to-one embed: PostgREST returns an object, not an array.
+  const getServiceName = (transaction: (typeof transactions)[number]) => {
+    const svc = transaction.services as
+      | { service_name?: string }
+      | { service_name?: string }[]
+      | null;
+    return Array.isArray(svc) ? svc[0]?.service_name : svc?.service_name;
+  };
 
   // 2. Get today's date in Philippine Standard Time (YYYY-MM-DD)
   const todayStr = getAppDate();

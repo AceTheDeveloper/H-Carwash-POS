@@ -9,10 +9,14 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireRole(["org:admin", "org:member"]);
-    if (authResult.error) return authResult.error;
     const { id } = await params;
     const { status } = await req.json();
+
+    // Cancelling a transaction is admin-only; staff can still advance the queue.
+    const authResult = await requireRole(
+      status === "cancelled" ? "org:admin" : ["org:admin", "org:member"],
+    );
+    if (authResult.error) return authResult.error;
 
     const allowedStatuses = [
       "pending",
@@ -31,10 +35,17 @@ export async function PATCH(
     }
 
     // 1. Update the transaction itself
-    const { data: transaction, error: updateError } = await supabase
+    let updateQuery = supabase
       .from("transactions")
       .update(updateData)
-      .eq("id", id)
+      .eq("id", id);
+
+    // Only unfinished orders can be cancelled (completed ones already paid out commissions).
+    if (status === "cancelled") {
+      updateQuery = updateQuery.in("status", ["pending", "in_progress"]);
+    }
+
+    const { data: transaction, error: updateError } = await updateQuery
       .select()
       .single();
 

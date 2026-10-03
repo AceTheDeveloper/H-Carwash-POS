@@ -19,7 +19,6 @@ import {
   FileClock,
   Loader2,
   PlayCircle,
-  Trash2,
 } from "lucide-react";
 import { DraftRow } from "@/hooks/useCheckoutForm"; // adjust path to wherever the hook lives
 
@@ -31,7 +30,6 @@ interface Props {
   onStatusChanged: () => void; // callback to refetch transactions after update
   drafts: DraftRow[]; // NEW
   onResumeDraft: (id: string) => void; // NEW: loads draft into checkout form
-  onDiscardDraft: (id: string) => void; // NEW
 }
 
 interface QueueItem {
@@ -51,7 +49,6 @@ export default function QueueSheet({
   onStatusChanged,
   drafts,
   onResumeDraft,
-  onDiscardDraft,
 }: Props) {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
@@ -270,13 +267,6 @@ export default function QueueSheet({
                     >
                       <PlayCircle className="w-3.5 h-3.5" />
                       Resume
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => onDiscardDraft(draft.id)}
-                      className="flex items-center justify-center gap-2 py-2 px-3 rounded-lg bg-error/10 text-error text-xs font-semibold hover:bg-error/20 transition-colors"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>

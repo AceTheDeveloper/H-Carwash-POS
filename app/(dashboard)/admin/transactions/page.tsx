@@ -65,7 +65,8 @@ export default async function TransactionsPage() {
   const todayStr = getAppDate();
 
   const todaysTransactions = transactions.filter((txn) => {
-    if (!txn.vehicle_in) return false;
+    if (!txn.vehicle_in || txn.status?.toLowerCase() === "cancelled")
+      return false;
     return getAppDate(txn.vehicle_in) === todayStr;
   });
 

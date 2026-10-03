@@ -102,7 +102,6 @@ export default function Page() {
               }
               drafts={form.drafts}
               onResumeDraft={form.loadDraft}
-              onDiscardDraft={form.deleteDraft}
             />
             <Button
               type="button"

@@ -13,10 +13,14 @@ import {
   Car,
   Award,
   Eye,
+  Ban,
+  Loader2,
   ChevronDown,
   LucideIcon,
 } from "lucide-react";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { api } from "@/lib/api";
 import { TransactionData } from "@/types/TransactionData";
 import {
   Dialog,
@@ -82,6 +86,31 @@ export default function TransactionsClient({
   const [statusFilter, setStatusFilter] = useState("all");
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionData | null>(null);
+  const router = useRouter();
+  const [cancelTarget, setCancelTarget] = useState<TransactionData | null>(
+    null,
+  );
+  const [isCancelling, setIsCancelling] = useState(false);
+  const [cancelError, setCancelError] = useState("");
+
+  // "Delete" = cancel: the record is kept, with status "cancelled" (admin-only on the server).
+  const confirmCancel = async () => {
+    if (!cancelTarget) return;
+    setIsCancelling(true);
+    setCancelError("");
+    try {
+      await api.patch(`/api/pos/transactions/${cancelTarget.id}/status`, {
+        status: "cancelled",
+      });
+      setCancelTarget(null);
+      router.refresh();
+    } catch (error) {
+      console.error("Failed to cancel transaction:", error);
+      setCancelError("Could not cancel this transaction. Please try again.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
 
   const formatDateTime = (value: string | null) =>
     value
@@ -254,6 +283,12 @@ export default function TransactionsClient({
         return (
           <Badge className="bg-blue-500/10 text-blue-600 border-blue-500/20 hover:bg-blue-500/20">
             In Progress
+          </Badge>
+        );
+      case "cancelled":
+        return (
+          <Badge className="bg-red-500/10 text-red-600 border-red-500/20 hover:bg-red-500/20">
+            Cancelled
           </Badge>
         );
       case "pending":
@@ -471,6 +506,23 @@ export default function TransactionsClient({
                             >
                               <Eye className="h-4 w-4 text-muted-foreground" />
                             </Button>
+                            {["pending", "in_progress"].includes(
+                              txn.status?.toLowerCase(),
+                            ) && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 rounded-full hover:bg-red-500/10"
+                                onClick={() => {
+                                  setCancelError("");
+                                  setCancelTarget(txn);
+                                }}
+                                aria-label={`Cancel transaction ${txn.order_id || txn.id}`}
+                                title="Cancel transaction"
+                              >
+                                <Ban className="h-4 w-4 text-red-600" />
+                              </Button>
+                            )}
                           </td>
                         </tr>
                       );
@@ -493,6 +545,43 @@ export default function TransactionsClient({
           </div>
         </section>
       </main>
+
+      <Dialog
+        open={cancelTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !isCancelling) setCancelTarget(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancel this transaction?</DialogTitle>
+            <DialogDescription>
+              {cancelTarget?.order_id || "This order"} (
+              {cancelTarget?.plate_number || "no plate"}) will be marked as
+              cancelled and removed from the live queue and sales totals. This
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {cancelError && <p className="text-sm text-red-600">{cancelError}</p>}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setCancelTarget(null)}
+              disabled={isCancelling}
+            >
+              Keep order
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={confirmCancel}
+              disabled={isCancelling}
+            >
+              {isCancelling && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Cancel transaction
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={selectedTransaction !== null}
