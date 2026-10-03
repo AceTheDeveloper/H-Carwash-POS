@@ -231,7 +231,7 @@ export default function QueueSheet({
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-semibold text-sm text-foreground">
+                      <p className="font-semibold text-sm text-foreground bg-blue-100 dark:bg-blue-950/60 text-blue-900 dark:text-blue-200 px-1.5 py-0.5 rounded w-fit">
                         {draft.car_brand || "Unnamed customer"}
                       </p>
                       <p className="text-xs text-muted-foreground uppercase">
