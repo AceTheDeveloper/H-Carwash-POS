@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireRole } from "../../helpers/requireRole";
 import { PromoData } from "@/types/PromoData";
 
+const PAYMENT_METHODS = ["cash", "qr", "card", "unpaid"];
+
 interface CheckoutAddOn {
   id: string;
   price: number;
@@ -23,6 +25,7 @@ interface CheckoutBody {
   add_ons?: CheckoutAddOn[];
   promo?: PromoData | null;
   payment_method: string;
+  unpaid_note?: string | null;
   staff?: string[];
   total_price: number;
 }
@@ -43,6 +46,19 @@ export async function POST(req: NextRequest) {
       body.staff.length === 0
     ) {
       return NextResponse.json({ message: "Missing required checkout fields" }, { status: 400 });
+    }
+
+    if (!PAYMENT_METHODS.includes(body.payment_method)) {
+      return NextResponse.json({ message: "Invalid payment method" }, { status: 400 });
+    }
+
+    const isUnpaid = body.payment_method === "unpaid";
+    const unpaidNote = body.unpaid_note?.trim() || null;
+    if (isUnpaid && !unpaidNote) {
+      return NextResponse.json(
+        { message: "Unpaid orders need a note (who it is for)" },
+        { status: 400 },
+      );
     }
 
     const addOns = Array.isArray(body.add_ons)
@@ -133,6 +149,7 @@ export async function POST(req: NextRequest) {
       service_id: body.service_id,
       service_price: Number(body.service_price) || 0,
       payment_method: body.payment_method,
+      unpaid_note: isUnpaid ? unpaidNote : null,
       status: "pending",
       promo: appliedPromo,
       vehicle_in: new Date().toISOString(),

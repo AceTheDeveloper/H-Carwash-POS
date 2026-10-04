@@ -2,13 +2,15 @@ import { PromoData } from "./PromoData";
 import { StaffData } from "./StaffData";
 
 export type VehicleSpecification = "4-wheels" | "2-wheels";
-export type PaymentMethod = "cash" | "qr" | "card";
+// "unpaid" = no money collected (partnerships etc.); an admin can settle it later.
+export type PaymentMethod = "cash" | "qr" | "card" | "unpaid";
 
 export type FormErrors = {
   customerName?: string;
   contactNumber?: string;
   plateNumber?: string;
   paymentMethod?: string;
+  unpaidNote?: string;
   staff?: string;
   service?: string;
   carBrand?: string;

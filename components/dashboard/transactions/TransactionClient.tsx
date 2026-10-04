@@ -14,6 +14,7 @@ import {
   Award,
   Eye,
   Ban,
+  HandCoins,
   Loader2,
   ChevronDown,
   LucideIcon,
@@ -84,6 +85,7 @@ export default function TransactionsClient({
   const [search, setSearch] = useState<string>("");
   const [dateFilter, setDateFilter] = useState("today");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [paymentFilter, setPaymentFilter] = useState("all");
   const [selectedTransaction, setSelectedTransaction] =
     useState<TransactionData | null>(null);
   const router = useRouter();
@@ -92,6 +94,29 @@ export default function TransactionsClient({
   );
   const [isCancelling, setIsCancelling] = useState(false);
   const [cancelError, setCancelError] = useState("");
+  const [settleMethod, setSettleMethod] = useState("cash");
+  const [isSettling, setIsSettling] = useState(false);
+  const [settleError, setSettleError] = useState("");
+
+  // An unpaid order (partnership etc.) was finally paid: record how.
+  const confirmSettle = async () => {
+    if (!selectedTransaction) return;
+    setIsSettling(true);
+    setSettleError("");
+    try {
+      await api.patch(
+        `/api/admin/transactions/${selectedTransaction.id}/settle`,
+        { payment_method: settleMethod },
+      );
+      setSelectedTransaction(null);
+      router.refresh();
+    } catch (error) {
+      console.error("Failed to settle transaction:", error);
+      setSettleError("Could not mark this order as paid. Please try again.");
+    } finally {
+      setIsSettling(false);
+    }
+  };
 
   // "Delete" = cancel: the record is kept, with status "cancelled" (admin-only on the server).
   const confirmCancel = async () => {
@@ -178,10 +203,13 @@ export default function TransactionsClient({
         transactionDate <= todayDateString);
     const matchesStatus =
       statusFilter === "all" || txn.status?.toLowerCase() === statusFilter;
+    const matchesPayment =
+      paymentFilter === "all" || txn.payment_method === paymentFilter;
 
     return (
       matchesDate &&
       matchesStatus &&
+      matchesPayment &&
       (customerName.toLowerCase().includes(term) ||
         plateNumber.toLowerCase().includes(term) ||
         orderId.toLowerCase().includes(term) ||
@@ -199,7 +227,10 @@ export default function TransactionsClient({
       "Plate No": txn.plate_number || "",
       Services: txn.services?.service_name || "Unknown Service",
       Amount: Number(txn.total_price || 0),
-      Remarks: txn.payment_method || "",
+      Remarks:
+        txn.payment_method === "unpaid"
+          ? `UNPAID${txn.unpaid_note ? ` - ${txn.unpaid_note}` : ""}`
+          : txn.payment_method || "",
       "Vehicle In": formatDateTime(txn.vehicle_in),
       "Vehicle Out": formatDateTime(txn.vehicle_out),
       "Cellphone No": txn.contact_number || "",
@@ -394,6 +425,24 @@ export default function TransactionsClient({
                   <ChevronDown className="h-3 w-3 opacity-50" />
                 </span>
               </label>
+              <label className="relative flex flex-1 lg:flex-none items-center rounded-md border border-border bg-background px-3 h-10 text-xs sm:text-sm">
+                <HandCoins className="mr-2 h-3.5 w-3.5 text-muted-foreground" />
+                <select
+                  aria-label="Filter transactions by payment"
+                  value={paymentFilter}
+                  onChange={(event) => setPaymentFilter(event.target.value)}
+                  className="absolute inset-0 h-full w-full cursor-pointer appearance-none bg-transparent pl-8 pr-7 outline-none"
+                >
+                  <option value="all">All Payments</option>
+                  <option value="cash">Cash</option>
+                  <option value="qr">QR</option>
+                  <option value="card">Card</option>
+                  <option value="unpaid">Unpaid</option>
+                </select>
+                <span className="pointer-events-none ml-auto">
+                  <ChevronDown className="h-3 w-3 opacity-50" />
+                </span>
+              </label>
             </div>
           </div>
 
@@ -492,6 +541,11 @@ export default function TransactionsClient({
                             <p className="font-bold text-foreground">
                               ₱{(txn.total_price || 0).toFixed(2)}
                             </p>
+                            {txn.payment_method === "unpaid" && (
+                              <Badge className="mt-1 bg-amber-500/10 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
+                                Unpaid
+                              </Badge>
+                            )}
                           </td>
 
                           {/* Actions */}
@@ -586,7 +640,11 @@ export default function TransactionsClient({
       <Dialog
         open={selectedTransaction !== null}
         onOpenChange={(open) => {
-          if (!open) setSelectedTransaction(null);
+          if (!open) {
+            setSelectedTransaction(null);
+            setSettleError("");
+            setSettleMethod("cash");
+          }
         }}
       >
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto no-scrollbar">
@@ -644,6 +702,17 @@ export default function TransactionsClient({
                   <p className="font-medium capitalize">
                     {selectedTransaction.payment_method || "-"}
                   </p>
+                  {selectedTransaction.payment_method === "unpaid" &&
+                    selectedTransaction.unpaid_note && (
+                      <p className="text-xs text-muted-foreground">
+                        {selectedTransaction.unpaid_note}
+                      </p>
+                    )}
+                  {selectedTransaction.paid_at && (
+                    <p className="text-xs text-muted-foreground">
+                      Settled {formatDateTime(selectedTransaction.paid_at)}
+                    </p>
+                  )}
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">Amount</p>
@@ -702,6 +771,42 @@ export default function TransactionsClient({
                   </p>
                 )}
               </div>
+
+              {selectedTransaction.payment_method === "unpaid" && (
+                <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                  <div>
+                    <h3 className="font-semibold text-amber-700 dark:text-amber-500">
+                      Unpaid order
+                    </h3>
+                    <p className="text-xs text-muted-foreground">
+                      No payment has been collected. When it is paid, record how
+                      so it moves out of the Unpaids list.
+                    </p>
+                  </div>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <select
+                      aria-label="How was it paid"
+                      value={settleMethod}
+                      onChange={(e) => setSettleMethod(e.target.value)}
+                      disabled={isSettling}
+                      className="h-10 flex-1 rounded-md border border-border bg-background px-3 text-sm"
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="qr">QR</option>
+                      <option value="card">Card</option>
+                    </select>
+                    <Button onClick={confirmSettle} disabled={isSettling}>
+                      {isSettling && (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      )}
+                      Mark as paid
+                    </Button>
+                  </div>
+                  {settleError && (
+                    <p className="text-sm text-red-600">{settleError}</p>
+                  )}
+                </div>
+              )}
 
               <div className="space-y-2 border-t border-border pt-4">
                 <h3 className="font-semibold">Promotion</h3>

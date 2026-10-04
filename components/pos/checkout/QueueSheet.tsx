@@ -39,6 +39,7 @@ interface QueueItem {
   status: string;
   vehicle_in?: string | null;
   total_price?: number | null;
+  payment_method?: string | null;
 }
 
 export default function QueueSheet({
@@ -143,11 +144,18 @@ export default function QueueSheet({
                           {order.plate_number}
                         </p>
                       </div>
-                      <Badge
-                        className={`capitalize ${statusStyles[order.status] ?? "bg-muted text-muted-foreground"}`}
-                      >
-                        {order.status.replace("_", " ")}
-                      </Badge>
+                      <div className="flex flex-col items-end gap-1">
+                        <Badge
+                          className={`capitalize ${statusStyles[order.status] ?? "bg-muted text-muted-foreground"}`}
+                        >
+                          {order.status.replace("_", " ")}
+                        </Badge>
+                        {order.payment_method === "unpaid" && (
+                          <Badge className="bg-amber-500/15 text-amber-600 border border-amber-500/30">
+                            Unpaid
+                          </Badge>
+                        )}
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border/40">
@@ -236,7 +244,7 @@ export default function QueueSheet({
                       </p>
                     </div>
                     <Badge className="bg-warning/15 text-warning border border-warning/30">
-                      Unpaid
+                      Draft
                     </Badge>
                   </div>
 

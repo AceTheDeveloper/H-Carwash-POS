@@ -10,9 +10,10 @@ import { AddOnsData } from "@/types/AddOnsData";
 import { PromoData } from "@/types/PromoData"; // <-- Added
 import { ServicesData } from "@/types/ServicesData";
 import { useClerk } from "@clerk/nextjs";
-import { LogOut, ShieldCheck } from "lucide-react";
+import { FileSpreadsheet, LogOut, ShieldCheck } from "lucide-react";
 import { useState } from "react";
 
+import DailySheetViewer from "@/components/pos/DailySheetViewer";
 import AddOnsStep from "@/components/pos/checkout/AddOnsStep";
 import CustomerInfoForm from "@/components/pos/checkout/CustomerInfoForm";
 import OrderSummary from "@/components/pos/checkout/OrderSummary";
@@ -38,6 +39,7 @@ export default function Page() {
   const queryClient = useQueryClient();
 
   const [isQueueOpen, setIsQueueOpen] = useState(false);
+  const [isSheetOpen, setIsSheetOpen] = useState(false);
 
   const form = useCheckoutForm();
 
@@ -106,6 +108,15 @@ export default function Page() {
             <Button
               type="button"
               variant="outline"
+              onClick={() => setIsSheetOpen(true)}
+              className="gap-2"
+            >
+              <FileSpreadsheet className="size-4 text-primary" />
+              <span className="hidden sm:inline">Daily Sheet</span>
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
               size="icon"
               aria-label="Log out"
               title="Log out"
@@ -116,6 +127,13 @@ export default function Page() {
           </div>
         </div>
       </header>
+
+      <DailySheetViewer
+        open={isSheetOpen}
+        onOpenChange={setIsSheetOpen}
+        addOns={addOnsList}
+        staffList={staffData ?? []}
+      />
 
       <main className="mx-auto max-w-[1450px] px-4 py-5 sm:px-6 sm:py-8">
         <div className="mb-6 flex flex-col gap-1">
@@ -191,10 +209,17 @@ export default function Page() {
             <PaymentMethodStep
               value={form.paymentMethod}
               error={form.errors.paymentMethod}
+              unpaidNote={form.unpaidNote}
+              unpaidNoteError={form.errors.unpaidNote}
               isSubmitting={form.isSubmitting}
+              onUnpaidNoteChange={(note) => {
+                form.setUnpaidNote(note);
+                form.clearError("unpaidNote");
+              }}
               onChange={(method) => {
                 form.setPaymentMethod(method);
                 form.clearError("paymentMethod");
+                if (method !== "unpaid") form.clearError("unpaidNote");
               }}
             />
 

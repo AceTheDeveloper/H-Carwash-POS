@@ -33,6 +33,8 @@ export interface TransactionData {
   created_at: string;
   status: string;
   payment_method: string | null;
+  unpaid_note?: string | null;
+  paid_at?: string | null;
   vehicle_in: string | null;
   vehicle_out: string | null;
   promo: PromoData;

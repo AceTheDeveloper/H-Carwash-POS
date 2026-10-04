@@ -4,6 +4,7 @@ import {
   Banknote,
   CreditCard,
   Gift,
+  HandCoins,
   Loader2,
   QrCode,
   Receipt,
@@ -46,6 +47,7 @@ const PAYMENT_METHOD_DISPLAY: Record<
   cash: { label: "Cash", icon: Banknote },
   qr: { label: "QR Code", icon: QrCode },
   card: { label: "Card", icon: CreditCard },
+  unpaid: { label: "Unpaid", icon: HandCoins },
 };
 
 export default function OrderSummary({

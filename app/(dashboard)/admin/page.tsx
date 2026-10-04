@@ -58,7 +58,12 @@ export default async function DashboardPage() {
     .filter((txn) => txn.payment_method?.toLowerCase() === "cash")
     .reduce((sum, txn) => sum + (txn.total_price || 0), 0);
 
-  const qrSales = salesToday - cashSales;
+  // Unpaid orders (partnerships etc.) are sales but no money was collected.
+  const unpaidSales = todaysTransactions
+    .filter((txn) => txn.payment_method?.toLowerCase() === "unpaid")
+    .reduce((sum, txn) => sum + (txn.total_price || 0), 0);
+
+  const qrSales = salesToday - cashSales - unpaidSales;
 
   // Count Active Vehicles "In"
   const activeVehicles = transactions.filter(
@@ -76,7 +81,7 @@ export default async function DashboardPage() {
         minimumFractionDigits: 2,
         maximumFractionDigits: 2,
       })}`,
-      description: `Cash: ₱${cashSales.toLocaleString()} | QR: ₱${qrSales.toLocaleString()}`,
+      description: `Cash: ₱${cashSales.toLocaleString()} | QR/Card: ₱${qrSales.toLocaleString()} | Unpaid: ₱${unpaidSales.toLocaleString()}`,
       icon: DollarSign,
       trend: "Live database sync",
       isHighlight: true,

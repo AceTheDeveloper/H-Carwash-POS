@@ -36,6 +36,7 @@ export interface DraftRow {
   selected_add_ons: SelectedAddOnItem[];
   selected_promo: PromoData | null;
   payment_method: PaymentMethod | null;
+  unpaid_note?: string | null;
   selected_staff: string[];
   total_price: number;
   order_id: string;
@@ -68,6 +69,7 @@ export function useCheckoutForm() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
   );
+  const [unpaidNote, setUnpaidNote] = useState("");
   const [selectedStaff, setSelectedStaff] = useState<string[]>([]);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,6 +101,7 @@ export function useCheckoutForm() {
     setSelectedAddOns([]);
     setSelectedPromoState(null);
     setPaymentMethod(null);
+    setUnpaidNote("");
     setSelectedStaff([]);
     setCurrentDraftId(null);
     setErrors({});
@@ -221,6 +224,8 @@ export function useCheckoutForm() {
     if (!selectedService) newErrors.service = "Please select a service";
     if (!paymentMethod)
       newErrors.paymentMethod = "Please select a payment method";
+    if (paymentMethod === "unpaid" && !unpaidNote.trim())
+      newErrors.unpaidNote = "Tell us who this unpaid order is for";
     if (selectedStaff.length === 0)
       newErrors.staff = "Please assign at least one staff member";
     if (!orderID.trim()) newErrors.orderID = "Order ID is required";
@@ -247,6 +252,7 @@ export function useCheckoutForm() {
         selected_add_ons: selectedAddOns,
         selected_promo: selectedPromo,
         payment_method: paymentMethod,
+        unpaid_note: paymentMethod === "unpaid" ? unpaidNote.trim() : null,
         selected_staff: selectedStaff,
         total_price: totalPrice,
         order_id: orderID,
@@ -288,6 +294,7 @@ export function useCheckoutForm() {
     setSelectedAddOns(draft.selected_add_ons ?? []);
     setSelectedPromoState(draft.selected_promo ?? null);
     setPaymentMethod(draft.payment_method ?? null);
+    setUnpaidNote(draft.unpaid_note ?? "");
     setSelectedStaff(draft.selected_staff ?? []);
     setOrderID(draft.order_id ?? "");
     setCurrentDraftId(draft.id);
@@ -331,6 +338,7 @@ export function useCheckoutForm() {
         })),
         promo: selectedPromo,
         payment_method: paymentMethod,
+        unpaid_note: paymentMethod === "unpaid" ? unpaidNote.trim() : null,
         staff: selectedStaff,
         total_price: totalPrice,
       };
@@ -358,6 +366,7 @@ export function useCheckoutForm() {
     selectedAddOns,
     selectedPromo,
     paymentMethod,
+    unpaidNote,
     selectedStaff,
     isSubmitting,
     isSavingDraft,
@@ -377,6 +386,7 @@ export function useCheckoutForm() {
     setSelectedSizeObj,
     setSelectedPromo: applyPromo,
     setPaymentMethod,
+    setUnpaidNote,
     toggleService,
     toggleAddOn,
     updateAddOnSeller,

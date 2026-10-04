@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import useServices from "@/hooks/useServices";
 import useStaff from "@/hooks/useStaff";
 import useAddOns from "@/hooks/useAddOns";
-import { exportDailyLogExcel, DailyLogTransaction } from "@/lib/dailyLogExport";
+import { exportReportExcel, DailyLogTransaction } from "@/lib/dailyLogExport";
+import { buildStaffCommissionMatrix } from "@/lib/staffCommissions";
+import { formatAppDateTime } from "@/lib/date";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,7 +35,7 @@ import {
 import {
   Search,
   Download,
-  Calendar as CalendarIcon,
+  X,
   CheckCircle2,
   XCircle,
   Clock,
@@ -41,6 +43,13 @@ import {
   FileText,
   FileSpreadsheet,
   FileIcon,
+  Banknote,
+  Receipt,
+  TrendingUp,
+  Wallet,
+  HandCoins,
+  Calendar,
+  LucideIcon,
 } from "lucide-react";
 
 interface ReportAddOn {
@@ -54,6 +63,7 @@ interface ReportTransaction {
   customer_name?: string | null;
   plate_number?: string | null;
   payment_method?: string | null;
+  unpaid_note?: string | null;
   total_price?: number | null;
   status?: string | null;
   services?: { service_name?: string } | { service_name?: string }[] | null;
@@ -82,6 +92,81 @@ const COLORS = [
 
 const selectClass =
   "h-10 w-full rounded-md border border-border/80 bg-background px-3 py-2 text-sm text-foreground shadow-xs focus:outline-none focus:ring-2 focus:ring-primary/20 cursor-pointer disabled:opacity-50";
+
+const cardClass =
+  "bg-card rounded-xl border border-border/60 shadow-xs overflow-hidden";
+
+const shortDate = (ymd: string) =>
+  new Date(`${ymd}T00:00:00`).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+
+function SectionCard({
+  title,
+  description,
+  action,
+  className = "",
+  children,
+}: {
+  title: string;
+  description?: string;
+  action?: React.ReactNode;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className={`${cardClass} ${className}`}>
+      <div className="flex items-start justify-between gap-3 px-4 sm:px-5 pt-4 sm:pt-5">
+        <div>
+          <h3 className="font-semibold text-foreground text-base">{title}</h3>
+          {description && (
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {description}
+            </p>
+          )}
+        </div>
+        {action}
+      </div>
+      <div className="p-4 sm:p-5">{children}</div>
+    </section>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  tone = "default",
+  children,
+}: {
+  label: string;
+  value: string;
+  icon: LucideIcon;
+  tone?: "default" | "primary";
+  children?: React.ReactNode;
+}) {
+  return (
+    <div className="p-5 bg-card rounded-xl border border-border/60 shadow-xs flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
+          {label}
+        </p>
+        <div className="p-2 bg-primary/10 rounded-md text-primary">
+          <Icon className="w-4 h-4" />
+        </div>
+      </div>
+      <p
+        className={`text-2xl font-bold truncate leading-tight ${
+          tone === "primary" ? "text-primary" : "text-foreground"
+        }`}
+      >
+        {value}
+      </p>
+      <div className="min-h-4 text-xs text-muted-foreground">{children}</div>
+    </div>
+  );
+}
 
 export default function AdminReportsPage() {
   const getPresetDates = (preset: string) => {
@@ -121,7 +206,6 @@ export default function AdminReportsPage() {
   const initialDates = getPresetDates("this_month");
   const [startDate, setStartDate] = useState(initialDates.startDate);
   const [endDate, setEndDate] = useState(initialDates.endDate);
-  const [calendarOpen, setCalendarOpen] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
 
@@ -133,6 +217,7 @@ export default function AdminReportsPage() {
   const [page, setPage] = useState(1);
   const pageSize = 15;
 
+  const queryClient = useQueryClient();
   const { data: services } = useServices();
   const { data: staffList } = useStaff();
   const { data: addOnsList } = useAddOns();
@@ -168,17 +253,23 @@ export default function AdminReportsPage() {
 
   const handlePresetChange = (preset: string) => {
     setDatePreset(preset);
-    if (preset === "custom") {
-      setCalendarOpen(true);
-      return;
-    }
-    if (preset !== "custom") {
-      const range = getPresetDates(preset);
-      setStartDate(range.startDate);
-      setEndDate(range.endDate);
-      setPage(1);
-    }
+    if (preset === "custom") return;
+    const range = getPresetDates(preset);
+    setStartDate(range.startDate);
+    setEndDate(range.endDate);
+    setPage(1);
   };
+
+  const filterParams = () =>
+    new URLSearchParams({
+      startDate,
+      endDate,
+      status,
+      serviceId,
+      paymentMethod,
+      staffId,
+      search,
+    });
 
   const {
     data: reportData,
@@ -197,41 +288,78 @@ export default function AdminReportsPage() {
       page,
     ],
     queryFn: async () => {
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        status,
-        serviceId,
-        paymentMethod,
-        staffId,
-        search,
-        page: page.toString(),
-        pageSize: pageSize.toString(),
-      });
+      const params = filterParams();
+      params.set("page", page.toString());
+      params.set("pageSize", pageSize.toString());
       const res = await api.get(`/api/admin/reports?${params.toString()}`);
       return res.data;
     },
   });
 
-  const handleExport = async (
-    format: "csv" | "excel" | "pdf" | "daily-log",
-  ) => {
+  // Every transaction in the range (not paginated): feeds the per-day staff
+  // commission table and the exports.
+  const allKey = [
+    "admin-reports-all",
+    startDate,
+    endDate,
+    status,
+    serviceId,
+    paymentMethod,
+    staffId,
+    search,
+  ];
+  const fetchAllTransactions = async (): Promise<ReportTransaction[]> => {
+    const params = filterParams();
+    params.set("export", "true");
+    const res = await api.get(`/api/admin/reports?${params.toString()}`);
+    return res.data.data || [];
+  };
+  const { data: allTransactions, isLoading: isCommissionLoading } = useQuery({
+    queryKey: allKey,
+    queryFn: fetchAllTransactions,
+  });
+
+  const staffNameById = useMemo(() => {
+    const map: Record<string, string> = {};
+    (staffList || []).forEach((s: { id: string; name: string }) => {
+      map[s.id] = s.name;
+    });
+    return map;
+  }, [staffList]);
+
+  const commissionMatrix = useMemo(
+    () =>
+      buildStaffCommissionMatrix(
+        (allTransactions || []) as unknown as DailyLogTransaction[],
+        staffNameById,
+        staffId !== "all" ? staffId : undefined,
+      ),
+    [allTransactions, staffNameById, staffId],
+  );
+
+  // Unpaid orders (partnerships etc.): sales with no money collected
+  const unpaidSummary = useMemo(() => {
+    const unpaid = (allTransactions || []).filter(
+      (t) =>
+        t.payment_method === "unpaid" &&
+        t.status?.toLowerCase() !== "cancelled",
+    );
+    return {
+      count: unpaid.length,
+      amount: unpaid.reduce((sum, t) => sum + Number(t.total_price || 0), 0),
+    };
+  }, [allTransactions]);
+
+  const handleExport = async (format: "csv" | "excel" | "pdf") => {
     try {
       setIsExporting(true);
       setExportOpen(false);
 
-      const params = new URLSearchParams({
-        startDate,
-        endDate,
-        status,
-        serviceId,
-        paymentMethod,
-        staffId,
-        search,
-        export: "true",
+      const txs = await queryClient.fetchQuery({
+        queryKey: allKey,
+        queryFn: fetchAllTransactions,
+        staleTime: 15_000,
       });
-      const res = await api.get(`/api/admin/reports?${params.toString()}`);
-      const txs: ReportTransaction[] = res.data.data || [];
 
       if (txs.length === 0) {
         alert("No records to export for the selected filters.");
@@ -251,18 +379,16 @@ export default function AdminReportsPage() {
         "Status",
       ];
 
-      const rows: string[][] = (txs as ReportTransaction[]).map((t) => [
+      const rows: string[][] = txs.map((t) => [
         t.order_id || "",
-        t.vehicle_in
-          ? new Date(t.vehicle_in).toLocaleString("en-PH", {
-              timeZone: "Asia/Manila",
-            })
-          : "",
+        formatAppDateTime(t.vehicle_in ?? null),
         t.customer_name || "Guest",
         t.plate_number || "",
         getServiceName(t),
         getSellerNames(t),
-        t.payment_method || "",
+        t.payment_method === "unpaid" && t.unpaid_note
+          ? `unpaid (${t.unpaid_note})`
+          : t.payment_method || "",
         Number(t.total_price || 0).toFixed(2),
         t.status || "",
       ]);
@@ -270,18 +396,16 @@ export default function AdminReportsPage() {
       const fileName = `Car_Wash_Report_${startDate}_to_${endDate}`;
 
       if (format === "csv") {
-        const csvRows = (txs as ReportTransaction[]).map((t) => [
+        const csvRows = txs.map((t) => [
           t.order_id,
-          t.vehicle_in
-            ? new Date(t.vehicle_in).toLocaleString("en-PH", {
-                timeZone: "Asia/Manila",
-              })
-            : "",
+          formatAppDateTime(t.vehicle_in ?? null),
           `"${(t.customer_name || "Guest").replace(/"/g, '""')}"`,
           t.plate_number,
           `"${getServiceName(t).replace(/"/g, '""')}"`,
           `"${getSellerNames(t).replace(/"/g, '""')}"`,
-          t.payment_method,
+          t.payment_method === "unpaid" && t.unpaid_note
+            ? `"unpaid (${t.unpaid_note.replace(/"/g, '""')})"`
+            : t.payment_method,
           t.total_price,
           t.status,
         ]);
@@ -297,15 +421,21 @@ export default function AdminReportsPage() {
         link.click();
         document.body.removeChild(link);
       } else if (format === "excel") {
-        const { utils, writeFile } = await import("xlsx");
-        const worksheet = utils.aoa_to_sheet([headers, ...rows]);
-        const workbook = utils.book_new();
-        utils.book_append_sheet(workbook, worksheet, "Reports");
-        writeFile(workbook, `${fileName}.xlsx`);
+        // Daily Log (paper-ledger layout) + Staff Commissions per day + Transactions
+        const addOnLabels: Record<string, string> = {};
+        (addOnsList || []).forEach((a: { id: string; label: string }) => {
+          addOnLabels[a.id] = a.label;
+        });
+
+        await exportReportExcel(
+          txs as unknown as DailyLogTransaction[],
+          { addOnLabels, staffNames: staffNameById },
+          startDate,
+          endDate,
+        );
       } else if (format === "pdf") {
         const { default: jsPDF } = await import("jspdf");
         const { default: autoTable } = await import("jspdf-autotable");
-        // Import html-to-image dynamically
         const htmlToImage = await import("html-to-image");
 
         const doc = new jsPDF("p", "mm", "a4");
@@ -328,14 +458,12 @@ export default function AdminReportsPage() {
         doc.text(`Reporting Period: ${startDate} to ${endDate}`, 14, currentY);
         currentY += 15;
 
-        // Capture KPIs
         if (kpiRef.current) {
           doc.setFontSize(14);
           doc.setTextColor(0);
           doc.text("Executive Summary", 14, currentY);
           currentY += 5;
 
-          // Use htmlToImage instead of html2canvas
           const imgData = await htmlToImage.toPng(kpiRef.current, {
             pixelRatio: 2,
             backgroundColor: "#ffffff",
@@ -355,7 +483,6 @@ export default function AdminReportsPage() {
           doc.text("Analytics & Trends", 14, currentY);
           currentY += 5;
 
-          // Use htmlToImage instead of html2canvas
           const imgData = await htmlToImage.toPng(chartsRef.current, {
             pixelRatio: 2,
             backgroundColor: "#ffffff",
@@ -372,7 +499,36 @@ export default function AdminReportsPage() {
           currentY += pdfHeight + 10;
         }
 
-        // Keep the detailed table on the second page.
+        // Staff commissions (per staff, whole period)
+        const exportMatrix = buildStaffCommissionMatrix(
+          txs as unknown as DailyLogTransaction[],
+          staffNameById,
+          staffId !== "all" ? staffId : undefined,
+        );
+        doc.addPage();
+        doc.setFontSize(14);
+        doc.setTextColor(0);
+        doc.text("Staff Commissions", 14, 20);
+        autoTable(doc, {
+          head: [["Staff", "Orders", "Commission (PHP)"]],
+          body: [
+            ...exportMatrix.rows.map((r) => [
+              r.name,
+              String(r.orders),
+              r.total.toFixed(2),
+            ]),
+            [
+              "Total",
+              String(exportMatrix.rows.reduce((sum, r) => sum + r.orders, 0)),
+              exportMatrix.grandTotal.toFixed(2),
+            ],
+          ],
+          startY: 25,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [37, 99, 235] },
+        });
+
+        // Detailed table on its own page.
         doc.addPage();
         doc.setFontSize(14);
         doc.setTextColor(0);
@@ -387,22 +543,6 @@ export default function AdminReportsPage() {
         });
 
         doc.save(`${fileName}.pdf`);
-      } else if (format === "daily-log") {
-        const addOnLabels: Record<string, string> = {};
-        (addOnsList || []).forEach((a: { id: string; label: string }) => {
-          addOnLabels[a.id] = a.label;
-        });
-        const staffNameById: Record<string, string> = {};
-        (staffList || []).forEach((s: { id: string; name: string }) => {
-          staffNameById[s.id] = s.name;
-        });
-
-        await exportDailyLogExcel(
-          txs as unknown as DailyLogTransaction[],
-          { addOnLabels, staffNames: staffNameById },
-          startDate,
-          endDate,
-        );
       }
     } catch (err) {
       console.error("Export failed:", err);
@@ -417,213 +557,207 @@ export default function AdminReportsPage() {
   const transactions = reportData?.transactions || [];
   const pagination = reportData?.pagination || { page: 1, totalPages: 1 };
 
+  const hasActiveFilters =
+    status !== "all" ||
+    serviceId !== "all" ||
+    paymentMethod !== "all" ||
+    staffId !== "all" ||
+    search !== "";
+
+  const clearFilters = () => {
+    setStatus("all");
+    setServiceId("all");
+    setPaymentMethod("all");
+    setStaffId("all");
+    setSearch("");
+    setPage(1);
+  };
+
+  const peso = (n: number) =>
+    `₱${(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2 })}`;
+
+  const statusStyle: Record<string, string> = {
+    completed: "bg-emerald-500/10 text-emerald-700",
+    pending: "bg-amber-500/10 text-amber-700",
+    in_progress: "bg-blue-500/10 text-blue-700",
+    cancelled: "bg-rose-500/10 text-rose-700",
+  };
+
+  const presets = [
+    { value: "today", label: "Today" },
+    { value: "yesterday", label: "Yesterday" },
+    { value: "this_week", label: "This Week" },
+    { value: "this_month", label: "This Month" },
+    { value: "custom", label: "Custom" },
+  ];
+
+  const axisTick = { fontSize: 11 };
+  const pesoTooltip = (label: string) => (value: unknown) => [
+    `₱${Number(value).toLocaleString()}`,
+    label,
+  ];
+
+  const rangeLabel =
+    startDate === endDate
+      ? shortDate(startDate)
+      : `${shortDate(startDate)} – ${shortDate(endDate)}`;
+
   return (
-    <div className="flex flex-col space-y-6 p-4 sm:p-6 md:p-8 w-full max-w-[1600px] mx-auto overflow-x-hidden bg-background">
+    <div className="flex flex-col space-y-6 p-4 sm:p-6 md:p-8 w-full max-w-350 mx-auto overflow-x-hidden bg-background">
       {/* Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-border/60 pb-6">
-        <div className="w-full sm:w-auto">
-          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground break-words">
-            Admin Reports & Analytics
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-foreground">
+            Reports
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            Comprehensive sales performance, visit metrics, commissions, and
-            transaction logs.
+          <p className="text-muted-foreground mt-1 text-sm flex items-center gap-1.5">
+            <Calendar className="h-3.5 w-3.5" />
+            {rangeLabel}
+            <span className="text-border">•</span>
+            Sales, staff commissions and transaction history
           </p>
         </div>
 
-        {/* Export Dropdown */}
         <Popover open={exportOpen} onOpenChange={setExportOpen}>
           <PopoverTrigger>
             <Button
               variant="default"
               disabled={isExporting}
-              className="w-full sm:w-auto shadow-xs shrink-0"
+              className="w-full sm:w-auto shrink-0"
             >
               {isExporting ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
-                  Generating...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating...
                 </>
               ) : (
                 <>
-                  <Download className="mr-2 h-4 w-4" /> Export Report
+                  <Download className="mr-2 h-4 w-4" /> Export
                 </>
               )}
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-48 p-2 bg-card border border-border shadow-lg"
+            className="w-60 p-2 bg-card border border-border shadow-lg"
             align="end"
           >
             <div className="flex flex-col gap-1">
               <Button
                 variant="ghost"
                 size="sm"
-                className="justify-start font-normal"
-                onClick={() => handleExport("csv")}
-              >
-                <FileText className="mr-2 h-4 w-4 text-muted-foreground" />{" "}
-                Export as CSV
-              </Button>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="justify-start font-normal"
+                className="h-auto justify-start py-2 font-normal"
                 onClick={() => handleExport("excel")}
               >
-                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" />{" "}
-                Export as Excel
+                <FileSpreadsheet className="mr-2 h-4 w-4 shrink-0 text-emerald-600" />
+                <span className="flex flex-col items-start text-left">
+                  <span>Excel</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Daily log + staff commissions
+                  </span>
+                </span>
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="justify-start font-normal"
+                className="h-auto justify-start py-2 font-normal"
                 onClick={() => handleExport("pdf")}
               >
-                <FileIcon className="mr-2 h-4 w-4 text-rose-600" /> Export as
-                PDF (Full)
+                <FileIcon className="mr-2 h-4 w-4 shrink-0 text-rose-600" />
+                <span className="flex flex-col items-start text-left">
+                  <span>PDF</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Summary, charts, commissions
+                  </span>
+                </span>
               </Button>
               <Button
                 variant="ghost"
                 size="sm"
-                className="justify-start font-normal"
-                onClick={() => handleExport("daily-log")}
+                className="h-auto justify-start py-2 font-normal"
+                onClick={() => handleExport("csv")}
               >
-                <FileSpreadsheet className="mr-2 h-4 w-4 text-amber-600" />{" "}
-                Daily Log (Excel)
+                <FileText className="mr-2 h-4 w-4 shrink-0 text-muted-foreground" />
+                <span className="flex flex-col items-start text-left">
+                  <span>CSV</span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Plain transaction list
+                  </span>
+                </span>
               </Button>
             </div>
           </PopoverContent>
         </Popover>
       </div>
 
-      {/* Filter Toolbar (Omitted unchanged code for brevity, keep your exact filter bar here) */}
-      <div className="bg-card p-4 sm:p-5 rounded-xl border border-border/60 shadow-xs flex flex-col gap-4 w-full">
-        <div className="flex flex-col lg:flex-row items-stretch lg:items-end justify-between gap-4 w-full">
-          {/* Search Bar */}
-          <div className="flex flex-col gap-1.5 w-full lg:max-w-md">
-            <label
-              htmlFor="search-input"
-              className="text-xs font-semibold text-muted-foreground"
-            >
-              Search Transactions
-            </label>
-            <div className="relative w-full">
-              <Search
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
-                size={16}
-              />
+      {/* Filters */}
+      <div className="bg-card p-4 rounded-xl border border-border/60 shadow-xs flex flex-col gap-4">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1 w-fit">
+            {presets.map((p) => (
+              <button
+                key={p.value}
+                type="button"
+                onClick={() => handlePresetChange(p.value)}
+                className={`px-3 py-1.5 text-sm rounded-md cursor-pointer transition-colors ${
+                  datePreset === p.value
+                    ? "bg-background text-foreground font-medium shadow-xs"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {p.label}
+              </button>
+            ))}
+          </div>
+
+          {datePreset === "custom" && (
+            <div className="flex items-center gap-2">
               <Input
-                id="search-input"
-                value={search}
+                type="date"
+                aria-label="Start date"
+                value={startDate}
                 onChange={(e) => {
-                  setSearch(e.target.value);
+                  setStartDate(e.target.value);
                   setPage(1);
                 }}
-                placeholder="Search Order ID, Customer, Plate..."
-                className="pl-9 bg-background border-border/80 h-10 w-full"
+                className="h-10 bg-background"
+              />
+              <span className="text-muted-foreground text-sm">to</span>
+              <Input
+                type="date"
+                aria-label="End date"
+                value={endDate}
+                onChange={(e) => {
+                  setEndDate(e.target.value);
+                  setPage(1);
+                }}
+                className="h-10 bg-background"
               />
             </div>
-          </div>
-
-          {/* Date Presets & Custom Date Range */}
-          <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 w-full lg:w-auto">
-            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
-              <label
-                htmlFor="preset-select"
-                className="text-xs font-semibold text-muted-foreground"
-              >
-                Date Preset
-              </label>
-              <select
-                id="preset-select"
-                value={datePreset}
-                onChange={(e) => handlePresetChange(e.target.value)}
-                className={`${selectClass} sm:w-[160px]`}
-              >
-                <option value="today">Today</option>
-                <option value="yesterday">Yesterday</option>
-                <option value="this_week">This Week</option>
-                <option value="this_month">This Month</option>
-                <option value="custom">Custom Range</option>
-              </select>
-            </div>
-
-            <div className="flex flex-col gap-1.5 w-full sm:w-auto">
-              <label className="text-xs font-semibold text-muted-foreground">
-                Custom Range
-              </label>
-              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
-                <PopoverTrigger>
-                  <Button
-                    variant="outline"
-                    className="h-10 bg-background border-border/80 justify-start text-left font-normal px-3 w-full sm:w-auto"
-                  >
-                    <CalendarIcon className="mr-2 h-4 w-4 text-muted-foreground shrink-0" />
-                    <span className="truncate">
-                      {startDate && endDate
-                        ? `${startDate} to ${endDate}`
-                        : "Pick date range"}
-                    </span>
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-[calc(100vw-2rem)] sm:w-auto p-4 bg-card border border-border shadow-lg max-w-sm"
-                  align="end"
-                >
-                  <div className="flex flex-col space-y-4">
-                    <div className="flex flex-col sm:flex-row gap-4">
-                      <div className="flex-1">
-                        <label className="text-xs font-semibold mb-1 block text-muted-foreground">
-                          Start Date
-                        </label>
-                        <Input
-                          type="date"
-                          value={startDate}
-                          onChange={(e) => {
-                            setStartDate(e.target.value);
-                            setDatePreset("custom");
-                            setPage(1);
-                          }}
-                          className="h-10 bg-background w-full"
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <label className="text-xs font-semibold mb-1 block text-muted-foreground">
-                          End Date
-                        </label>
-                        <Input
-                          type="date"
-                          value={endDate}
-                          onChange={(e) => {
-                            setEndDate(e.target.value);
-                            setDatePreset("custom");
-                            setPage(1);
-                          }}
-                          className="h-10 bg-background w-full"
-                        />
-                      </div>
-                    </div>
-                    <Button
-                      className="w-full"
-                      size="sm"
-                      onClick={() => setCalendarOpen(false)}
-                    >
-                      Apply Range
-                    </Button>
-                  </div>
-                </PopoverContent>
-              </Popover>
-            </div>
-          </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="relative sm:col-span-2 lg:col-span-1">
+            <Search
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              size={16}
+            />
+            <Input
+              aria-label="Search transactions"
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search order, customer, plate"
+              className="pl-9 bg-background border-border/80 h-10 w-full"
+            />
+          </div>
+
           <select
             aria-label="Filter by status"
             value={status}
-            onChange={(event) => {
-              setStatus(event.target.value);
+            onChange={(e) => {
+              setStatus(e.target.value);
               setPage(1);
             }}
             className={selectClass}
@@ -638,8 +772,8 @@ export default function AdminReportsPage() {
           <select
             aria-label="Filter by service"
             value={serviceId}
-            onChange={(event) => {
-              setServiceId(event.target.value);
+            onChange={(e) => {
+              setServiceId(e.target.value);
               setPage(1);
             }}
             className={selectClass}
@@ -657,22 +791,24 @@ export default function AdminReportsPage() {
           <select
             aria-label="Filter by payment method"
             value={paymentMethod}
-            onChange={(event) => {
-              setPaymentMethod(event.target.value);
+            onChange={(e) => {
+              setPaymentMethod(e.target.value);
               setPage(1);
             }}
             className={selectClass}
           >
-            <option value="all">All payment methods</option>
+            <option value="all">All payments</option>
             <option value="cash">Cash</option>
             <option value="qr">QR</option>
+            <option value="card">Card</option>
+            <option value="unpaid">Unpaid</option>
           </select>
 
           <select
             aria-label="Filter by staff member"
             value={staffId}
-            onChange={(event) => {
-              setStaffId(event.target.value);
+            onChange={(e) => {
+              setStaffId(e.target.value);
               setPage(1);
             }}
             className={selectClass}
@@ -685,6 +821,19 @@ export default function AdminReportsPage() {
             ))}
           </select>
         </div>
+
+        {hasActiveFilters && (
+          <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="text-muted-foreground"
+            >
+              <X className="mr-1 h-4 w-4" /> Clear filters
+            </Button>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
@@ -697,109 +846,75 @@ export default function AdminReportsPage() {
         </div>
       ) : (
         <>
-          {/* WRAPPED IN kpiRef FOR PDF SNAPSHOT */}
+          {/* Summary (PDF snapshot) */}
           <div
             ref={kpiRef}
-            className="flex flex-col gap-4 bg-background p-2 -m-2 rounded-lg"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 bg-background p-2 -m-2 rounded-lg"
           >
-            {/* KPI Cards Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-              <div className="p-5 bg-card rounded-xl border border-border shadow-xs space-y-1">
-                <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
-                  Total Revenue
-                </p>
-                <p className="text-2xl font-bold text-primary truncate">
-                  ₱
-                  {(kpis.totalRevenue || 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-              <div className="p-5 bg-card rounded-xl border border-border shadow-xs space-y-1">
-                <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
-                  Total Transactions
-                </p>
-                <p className="text-2xl font-bold text-foreground">
-                  {kpis.transactionCount || 0}
-                </p>
-              </div>
-              <div className="p-5 bg-card rounded-xl border border-border shadow-xs space-y-1">
-                <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
-                  Average Ticket Value
-                </p>
-                <p className="text-2xl font-bold text-foreground truncate">
-                  ₱
-                  {(kpis.averageTicket || 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-              <div className="p-5 bg-card rounded-xl border border-border shadow-xs space-y-1">
-                <p className="text-xs uppercase font-semibold text-muted-foreground tracking-wider">
-                  Total Commissions
-                </p>
-                <p className="text-2xl font-bold text-primary truncate">
-                  ₱
-                  {(kpis.totalCommissions || 0).toLocaleString("en-US", {
-                    minimumFractionDigits: 2,
-                  })}
-                </p>
-              </div>
-            </div>
-
-            {/* Status Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 w-full">
-              <div className="p-4 bg-card rounded-xl border border-border flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Completed
-                  </p>
-                  <p className="text-xl font-bold text-emerald-600">
-                    {kpis.completedCount || 0}
-                  </p>
-                </div>
-                <CheckCircle2 className="w-8 h-8 text-emerald-500/20" />
-              </div>
-              <div className="p-4 bg-card rounded-xl border border-border flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Pending / In-Progress
-                  </p>
-                  <p className="text-xl font-bold text-amber-600">
-                    {kpis.pendingInProgressCount || 0}
-                  </p>
-                </div>
-                <Clock className="w-8 h-8 text-amber-500/20" />
-              </div>
-              <div className="p-4 bg-card rounded-xl border border-border flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground">
-                    Cancelled
-                  </p>
-                  <p className="text-xl font-bold text-rose-600">
-                    {kpis.cancelledCount || 0}
-                  </p>
-                </div>
-                <XCircle className="w-8 h-8 text-rose-500/20" />
-              </div>
-            </div>
+            <StatCard
+              label="Revenue"
+              value={peso(kpis.totalRevenue)}
+              icon={Banknote}
+              tone="primary"
+            >
+              Completed orders only
+            </StatCard>
+            <StatCard
+              label="Transactions"
+              value={String(kpis.transactionCount || 0)}
+              icon={Receipt}
+            >
+              <span className="flex flex-wrap gap-x-3">
+                <span className="inline-flex items-center gap-1 text-emerald-600">
+                  <CheckCircle2 size={12} /> {kpis.completedCount || 0} done
+                </span>
+                <span className="inline-flex items-center gap-1 text-amber-600">
+                  <Clock size={12} /> {kpis.pendingInProgressCount || 0} open
+                </span>
+                <span className="inline-flex items-center gap-1 text-rose-600">
+                  <XCircle size={12} /> {kpis.cancelledCount || 0} cancelled
+                </span>
+              </span>
+            </StatCard>
+            <StatCard
+              label="Avg. Ticket"
+              value={peso(kpis.averageTicket)}
+              icon={TrendingUp}
+            >
+              Per completed order
+            </StatCard>
+            <StatCard
+              label="Commissions"
+              value={peso(kpis.totalCommissions)}
+              icon={Wallet}
+            >
+              Paid out to staff
+            </StatCard>
+            <StatCard
+              label="Unpaid"
+              value={peso(unpaidSummary.amount)}
+              icon={HandCoins}
+            >
+              {unpaidSummary.count} order{unpaidSummary.count === 1 ? "" : "s"}{" "}
+              not yet collected
+            </StatCard>
           </div>
 
-          {/* WRAPPED IN chartsRef FOR PDF SNAPSHOT */}
+          {/* Charts (PDF snapshot) */}
           <div
             ref={chartsRef}
-            className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full bg-background p-2 -m-2 rounded-lg"
+            className="grid grid-cols-1 lg:grid-cols-3 gap-6 w-full bg-background p-2 -m-2 rounded-lg"
           >
-            {/* Revenue by Day */}
-            <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xs space-y-4">
-              <h3 className="font-semibold text-foreground text-base">
-                Revenue by Day
-              </h3>
-              <div className="h-[280px] sm:h-[320px] w-full">
+            <SectionCard
+              title="Revenue by Day"
+              className="lg:col-span-3"
+              description="Completed orders per day"
+            >
+              <div className="h-65 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart
                     data={charts.revenueByDay || []}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
@@ -807,63 +922,44 @@ export default function AdminReportsPage() {
                     />
                     <XAxis
                       dataKey="date"
-                      className="text-muted-foreground text-xs"
-                      tick={{ fontSize: 11 }}
+                      tick={axisTick}
+                      tickFormatter={shortDate}
                     />
-                    <YAxis
-                      className="text-muted-foreground text-xs"
-                      tick={{ fontSize: 11 }}
-                    />
+                    <YAxis tick={axisTick} />
                     <Tooltip
-                      formatter={(value: unknown) => [
-                        `₱${Number(value).toLocaleString()}`,
-                        "Revenue",
-                      ]}
+                      formatter={pesoTooltip("Revenue")}
+                      labelFormatter={(label) => shortDate(String(label))}
                     />
-                    {/* Notice isAnimationActive={false} to ensure perfect snapshots */}
                     <Line
                       type="monotone"
                       dataKey="revenue"
                       stroke="#2563eb"
                       strokeWidth={2.5}
-                      dot={{ r: 4 }}
+                      dot={{ r: 3 }}
                       isAnimationActive={false}
                     />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </SectionCard>
 
-            {/* Revenue by Service */}
-            <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xs space-y-4">
-              <h3 className="font-semibold text-foreground text-base">
-                Revenue by Service
-              </h3>
-              <div className="h-[280px] sm:h-[320px] w-full">
+            <SectionCard
+              title="Revenue by Service"
+              className="lg:col-span-2"
+            >
+              <div className="h-65 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart
                     data={charts.revenueByService || []}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
+                    margin={{ top: 10, right: 10, left: -10, bottom: 0 }}
                   >
                     <CartesianGrid
                       strokeDasharray="3 3"
                       className="text-border/40"
                     />
-                    <XAxis
-                      dataKey="service"
-                      className="text-muted-foreground text-xs"
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis
-                      className="text-muted-foreground text-xs"
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip
-                      formatter={(value: unknown) => [
-                        `₱${Number(value).toLocaleString()}`,
-                        "Revenue",
-                      ]}
-                    />
+                    <XAxis dataKey="service" tick={axisTick} />
+                    <YAxis tick={axisTick} />
+                    <Tooltip formatter={pesoTooltip("Revenue")} />
                     <Bar
                       dataKey="revenue"
                       fill="#2563eb"
@@ -873,14 +969,10 @@ export default function AdminReportsPage() {
                   </BarChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </SectionCard>
 
-            {/* Payment Method Breakdown */}
-            <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xs space-y-4">
-              <h3 className="font-semibold text-foreground text-base">
-                Payment Methods
-              </h3>
-              <div className="h-[280px] sm:h-[320px] w-full">
+            <SectionCard title="Payment Methods">
+              <div className="h-65 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -889,11 +981,12 @@ export default function AdminReportsPage() {
                       nameKey="method"
                       cx="50%"
                       cy="50%"
+                      innerRadius={50}
                       outerRadius={80}
                       isAnimationActive={false}
                     >
                       {(charts.paymentMethodBreakdown || []).map(
-                        (entry: ChartPoint, index: number) => (
+                        (_entry: ChartPoint, index: number) => (
                           <Cell
                             key={`cell-${index}`}
                             fill={COLORS[index % COLORS.length]}
@@ -906,61 +999,117 @@ export default function AdminReportsPage() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
-            </div>
+            </SectionCard>
+          </div>
 
-            {/* Staff Commission */}
-            <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xs space-y-4">
-              <h3 className="font-semibold text-foreground text-base">
-                Staff Commissions
-              </h3>
-              <div className="h-[280px] sm:h-[320px] w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart
-                    data={charts.staffCommissionSummary || []}
-                    margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
-                  >
-                    <CartesianGrid
-                      strokeDasharray="3 3"
-                      className="text-border/40"
-                    />
-                    <XAxis
-                      dataKey="name"
-                      className="text-muted-foreground text-xs"
-                      tick={{ fontSize: 11 }}
-                    />
-                    <YAxis
-                      className="text-muted-foreground text-xs"
-                      tick={{ fontSize: 11 }}
-                    />
-                    <Tooltip
-                      formatter={(value: unknown) => [
-                        `₱${Number(value).toLocaleString()}`,
-                        "Commission",
-                      ]}
-                    />
-                    <Bar
-                      dataKey="commission"
-                      fill="#10b981"
-                      radius={[6, 6, 0, 0]}
-                      isAnimationActive={false}
-                    />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Top-up Seller Performance */}
-            <div className="bg-card p-4 sm:p-6 rounded-xl border border-border shadow-xs space-y-4">
-              <h3 className="font-semibold text-foreground text-base">
-                Top-Up Seller Performance
-              </h3>
-              <div className="space-y-3">
-                {(charts.topUpSellerSummary || []).length === 0 ? (
-                  <p className="text-sm text-muted-foreground">
-                    No top-up seller activity for this period.
+          {/* Staff commissions per day + top-up sales */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <SectionCard
+              title="Staff Commissions"
+              description="Earned per day, from completed orders"
+              className="lg:col-span-2"
+              action={
+                <div className="text-right shrink-0">
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground font-semibold">
+                    Total
                   </p>
-                ) : (
-                  (charts.topUpSellerSummary || []).map(
+                  <p className="text-lg font-bold text-foreground">
+                    {peso(commissionMatrix.grandTotal)}
+                  </p>
+                </div>
+              }
+            >
+              {isCommissionLoading ? (
+                <div className="flex justify-center py-10">
+                  <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                </div>
+              ) : commissionMatrix.rows.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  No commissions for this period.
+                </p>
+              ) : (
+                <div className="-mx-4 sm:-mx-5 overflow-x-auto">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold">
+                      <tr>
+                        <th className="sticky left-0 z-10 bg-muted px-4 py-3 min-w-36">
+                          Staff
+                        </th>
+                        {commissionMatrix.dates.map((d) => (
+                          <th
+                            key={d}
+                            className="px-3 py-3 text-right whitespace-nowrap"
+                          >
+                            {shortDate(d)}
+                          </th>
+                        ))}
+                        <th className="px-3 py-3 text-right">Orders</th>
+                        <th className="px-4 py-3 text-right">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/50">
+                      {commissionMatrix.rows.map((r) => (
+                        <tr key={r.staffId} className="hover:bg-muted/20">
+                          <td className="sticky left-0 z-10 bg-card px-4 py-2.5 font-medium whitespace-nowrap">
+                            {r.name}
+                          </td>
+                          {commissionMatrix.dates.map((d) => (
+                            <td
+                              key={d}
+                              className="px-3 py-2.5 text-right tabular-nums text-muted-foreground"
+                            >
+                              {r.perDay[d] ? peso(r.perDay[d]) : "–"}
+                            </td>
+                          ))}
+                          <td className="px-3 py-2.5 text-right tabular-nums">
+                            {r.orders}
+                          </td>
+                          <td className="px-4 py-2.5 text-right font-semibold tabular-nums whitespace-nowrap">
+                            {peso(r.total)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot className="bg-muted/40 font-semibold">
+                      <tr>
+                        <td className="sticky left-0 z-10 bg-muted px-4 py-3">
+                          Total
+                        </td>
+                        {commissionMatrix.dates.map((d) => (
+                          <td
+                            key={d}
+                            className="px-3 py-3 text-right tabular-nums"
+                          >
+                            {peso(commissionMatrix.dayTotals[d] || 0)}
+                          </td>
+                        ))}
+                        <td className="px-3 py-3 text-right tabular-nums">
+                          {commissionMatrix.rows.reduce(
+                            (sum, r) => sum + r.orders,
+                            0,
+                          )}
+                        </td>
+                        <td className="px-4 py-3 text-right tabular-nums whitespace-nowrap">
+                          {peso(commissionMatrix.grandTotal)}
+                        </td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
+              )}
+            </SectionCard>
+
+            <SectionCard
+              title="Top-Up Sales"
+              description="Add-ons sold by staff"
+            >
+              {(charts.topUpSellerSummary || []).length === 0 ? (
+                <p className="text-sm text-muted-foreground py-6 text-center">
+                  No top-up sales for this period.
+                </p>
+              ) : (
+                <div>
+                  {(charts.topUpSellerSummary || []).map(
                     (seller: {
                       name: string;
                       count: number;
@@ -968,75 +1117,131 @@ export default function AdminReportsPage() {
                     }) => (
                       <div
                         key={seller.name}
-                        className="flex items-center justify-between border-b border-border/50 pb-2 last:border-0"
+                        className="flex items-center justify-between gap-3 border-b border-border/50 py-2.5 last:border-0 text-sm"
                       >
-                        <span className="font-medium text-foreground">
-                          {seller.name}
-                        </span>
-                        <span className="text-sm text-muted-foreground">
-                          {seller.count} add-ons / ₱
-                          {seller.revenue.toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}
+                        <div>
+                          <p className="font-medium">{seller.name}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {seller.count} add-on{seller.count === 1 ? "" : "s"}
+                          </p>
+                        </div>
+                        <span className="font-semibold tabular-nums">
+                          {peso(seller.revenue)}
                         </span>
                       </div>
                     ),
-                  )
-                )}
-              </div>
-            </div>
+                  )}
+                </div>
+              )}
+            </SectionCard>
           </div>
 
-          {/* Transaction Table */}
-          <div className="bg-card rounded-xl border border-border shadow-xs w-full overflow-hidden flex flex-col">
-            <div className="p-4 sm:p-6 border-b border-border/60">
-              <h3 className="text-lg font-semibold text-foreground">
-                Transaction Log
+          {/* Transactions */}
+          <section className={`${cardClass} w-full flex flex-col`}>
+            <div className="p-4 sm:p-5 border-b border-border/60 flex items-center justify-between">
+              <h3 className="text-base font-semibold text-foreground">
+                Transactions
               </h3>
+              <p className="text-xs text-muted-foreground">
+                {pagination.totalCount ?? transactions.length} total
+              </p>
             </div>
-            <div className="w-full overflow-x-auto block whitespace-nowrap">
-              <table className="w-full text-sm text-left min-w-[800px]">
+            <div className="w-full overflow-x-auto">
+              <table className="w-full text-sm text-left min-w-190">
                 <thead className="bg-muted/50 text-muted-foreground text-xs uppercase font-semibold">
                   <tr>
-                    <th className="px-4 py-3">Order ID</th>
+                    <th className="px-4 py-3">Order</th>
                     <th className="px-4 py-3">Date</th>
                     <th className="px-4 py-3">Customer</th>
                     <th className="px-4 py-3">Service</th>
                     <th className="px-4 py-3">Top-Up Seller</th>
-                    <th className="px-4 py-3">Total (₱)</th>
+                    <th className="px-4 py-3">Payment</th>
+                    <th className="px-4 py-3 text-right">Total</th>
                     <th className="px-4 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border/50">
-                  {transactions.map((t: ReportTransaction) => (
-                    <tr
-                      key={t.id}
-                      className="hover:bg-muted/20 transition-colors"
-                    >
-                      <td className="px-4 py-3 font-mono text-xs">
-                        {t.order_id}
+                  {transactions.length === 0 ? (
+                    <tr>
+                      <td
+                        colSpan={8}
+                        className="px-4 py-12 text-center text-muted-foreground"
+                      >
+                        No transactions match these filters.
                       </td>
-                      <td className="px-4 py-3 text-xs">
-                        {t.vehicle_in
-                          ? new Date(t.vehicle_in).toLocaleDateString()
-                          : "-"}
-                      </td>
-                      <td className="px-4 py-3 font-medium">
-                        {t.customer_name}
-                      </td>
-                      <td className="px-4 py-3">{getServiceName(t)}</td>
-                      <td className="px-4 py-3">{getSellerNames(t) || "-"}</td>
-                      <td className="px-4 py-3 font-semibold">
-                        ₱{Number(t.total_price || 0).toFixed(2)}
-                      </td>
-                      <td className="px-4 py-3 capitalize">{t.status}</td>
                     </tr>
-                  ))}
+                  ) : (
+                    transactions.map((t: ReportTransaction) => (
+                      <tr
+                        key={t.id}
+                        className="hover:bg-muted/20 transition-colors"
+                      >
+                        <td className="px-4 py-3 font-mono text-xs">
+                          {t.order_id}
+                        </td>
+                        <td className="px-4 py-3 text-xs whitespace-nowrap">
+                          {t.vehicle_in
+                            ? new Date(t.vehicle_in).toLocaleDateString(
+                                "en-PH",
+                                {
+                                  timeZone: "Asia/Manila",
+                                  month: "short",
+                                  day: "numeric",
+                                  year: "numeric",
+                                },
+                              )
+                            : "-"}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="font-medium">
+                            {t.customer_name || "Guest"}
+                          </div>
+                          {t.plate_number && (
+                            <div className="text-xs text-muted-foreground">
+                              {t.plate_number}
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-4 py-3">{getServiceName(t)}</td>
+                        <td className="px-4 py-3">
+                          {getSellerNames(t) || "-"}
+                        </td>
+                        <td className="px-4 py-3 uppercase text-xs">
+                          {t.payment_method === "unpaid" ? (
+                            <div className="normal-case">
+                              <span className="inline-block rounded-full bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-700">
+                                Unpaid
+                              </span>
+                              {t.unpaid_note && (
+                                <div className="mt-0.5 text-xs text-muted-foreground">
+                                  {t.unpaid_note}
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            t.payment_method || "-"
+                          )}
+                        </td>
+                        <td className="px-4 py-3 font-semibold text-right whitespace-nowrap">
+                          {peso(Number(t.total_price || 0))}
+                        </td>
+                        <td className="px-4 py-3">
+                          <span
+                            className={`inline-block rounded-full px-2 py-0.5 text-xs font-medium capitalize ${
+                              statusStyle[t.status || ""] ||
+                              "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {(t.status || "-").replace("_", " ")}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
                 </tbody>
               </table>
             </div>
 
-            {/* Pagination */}
             <div className="p-4 border-t border-border/60 flex items-center justify-between">
               <p className="text-xs text-muted-foreground">
                 Page {pagination.page} of {pagination.totalPages}
@@ -1060,7 +1265,7 @@ export default function AdminReportsPage() {
                 </Button>
               </div>
             </div>
-          </div>
+          </section>
         </>
       )}
     </div>

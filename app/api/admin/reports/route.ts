@@ -60,6 +60,8 @@ export async function GET(req: NextRequest) {
         service_price,
         total_price,
         payment_method,
+        unpaid_note,
+        paid_at,
         status,
         vehicle_in,
         vehicle_out,
