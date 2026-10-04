@@ -219,7 +219,8 @@ export function buildDaySheetModel(
   let card = 0;
 
   const ledger = buildLedgerRows(transactions, lookups).map((row, i) => {
-    const commission = round2((row.price - row.discount) * COMMISSION_RATE);
+    // Commission is on the original price: a promo / discount never reduces it.
+    const commission = round2(row.price * COMMISSION_RATE);
     const rowNet = round2(row.price - commission);
     price += row.price;
     discount += row.discount;
@@ -267,7 +268,8 @@ export function buildDaySheetModel(
 
 /**
  * One daily sheet, mirroring the client's template cell-for-cell:
- *   ledger K = (I - J) * 25%, L = I - K
+ *   ledger K = I * 25% (original price; the client's paper sheet uses (I - J) * 25%,
+ *   but commission is deliberately NOT reduced by discounts), L = I - K
  *   POS READING = ledger price total + marketing
  *   GROSS SALES = POS READING - STAFF CF
  *   Net Cash    = POS READING - expenses - unpaids - discounts - marketing - QR - card
@@ -360,12 +362,12 @@ function buildDaySheet(
       put("H", r, row.staff);
       put("I", r, row.price);
       if (row.discount) put("J", r, row.discount);
-      put("K", r, row.commission, `(I${r}-J${r})*${COMMISSION_RATE}`);
+      put("K", r, row.commission, `I${r}*${COMMISSION_RATE}`);
       put("L", r, row.net, `I${r}-K${r}`);
       put("M", r, row.mop);
       if (row.remarks) put("N", r, row.remarks);
     } else {
-      put("K", r, 0, `(I${r}-J${r})*${COMMISSION_RATE}`);
+      put("K", r, 0, `I${r}*${COMMISSION_RATE}`);
       put("L", r, 0, `I${r}-K${r}`);
     }
   }

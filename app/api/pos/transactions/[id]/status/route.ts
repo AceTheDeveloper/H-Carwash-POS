@@ -76,8 +76,31 @@ export async function PATCH(
       }
 
       if (staffRows && staffRows.length > 0) {
-        const commissionPool =
-          Number(transaction.total_price) * COMMISSION_RATE;
+        // Commission is based on the ORIGINAL price (service + add-ons as listed),
+        // not the discounted total, so a promo / free wash never costs the staff
+        // their commission.
+        const { data: addOnRows, error: addOnFetchError } = await supabase
+          .from("transaction_add_ons")
+          .select("price")
+          .eq("transaction_id", id);
+
+        if (addOnFetchError) {
+          console.log("Fetch Add-ons Error:", addOnFetchError.message);
+          return NextResponse.json(
+            {
+              message: "Status updated, but failed to calculate commissions",
+              error: addOnFetchError.message,
+            },
+            { status: 500 },
+          );
+        }
+
+        const originalPrice =
+          Number(transaction.service_price || 0) +
+          (addOnRows || []).reduce((sum, a) => sum + Number(a.price || 0), 0);
+        const commissionBase =
+          originalPrice > 0 ? originalPrice : Number(transaction.total_price);
+        const commissionPool = commissionBase * COMMISSION_RATE;
         const perStaffAmount = commissionPool / staffRows.length;
 
         const { error: commissionError } = await supabase

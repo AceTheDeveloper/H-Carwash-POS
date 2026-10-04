@@ -35,6 +35,7 @@ interface Props {
 interface QueueItem {
   id: string;
   customer_name?: string | null;
+  car_brand?: string | null;
   plate_number?: string | null;
   status: string;
   vehicle_in?: string | null;
@@ -138,7 +139,7 @@ export default function QueueSheet({
                     <div className="flex items-start justify-between">
                       <div>
                         <p className="font-semibold text-sm text-foreground">
-                          {order.customer_name}
+                          {order.car_brand || order.customer_name}
                         </p>
                         <p className="text-xs text-muted-foreground uppercase">
                           {order.plate_number}
